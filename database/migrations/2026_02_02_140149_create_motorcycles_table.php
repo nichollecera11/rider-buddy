@@ -13,14 +13,15 @@ return new class extends Migration
     {
         Schema::create('motorcycles', function (Blueprint $table) {
             $table->id();
-            $table->string('brand');
+            $table->foreignId('seller_id')->constrained('seller')->onDelete('cascade');
+            $table->foreignId('brand_id')->constrained()->onDelete('cascade');
             $table->string('model');
             $table->integer('year_model');
             $table->string('plate_number')->nullable(); //optional kung second hand
             $table->integer('mileage')->default(0);
             $table->decimal('price', 12, 2);
             $table->enum('condition', ['brand_new', 'second_hand']);
-            $table->enum('OR/CR_status', ['complete_original', 'orig_cr_xerox_or', 'xerox_only','no_papers'])->default('complete_orig');
+            $table->enum('document_status', ['complete_original', 'orig_cr_xerox_or', 'xerox_only','no_papers'])->default('complete_original');
             $table->boolean('is_registered')->default(true);
             $table->text('description');
             $table->text('issues')->nullable(); //if mint condition leave it blank

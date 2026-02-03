@@ -14,13 +14,13 @@ return new class extends Migration
         Schema::create('parts', function (Blueprint $table) {
             $table->id();
             // Relasyon: Kinsa ang namaligya? (Individual o Shop)
-            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->foreignId('seller_id')->constrained('seller')->onDelete('cascade');
             
             // Relasyon: Unsa ni nga klase nga part? (Engine, Body, etc.)
             $table->foreignId('category_id')->constrained();
             
             $table->string('part_name');
-            $table->string('brand')->nullable(); // e.g., TDR, RCB, o "No Brand"
+            $table->foreignId('brand_id')->constrained(); // e.g., TDR, RCB, o "No Brand"
             
             // KANI ANG IMONG GUSTO:
             $table->enum('condition', ['new', 'used'])->default('new');
