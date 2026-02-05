@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('parts', function (Blueprint $table) {
             $table->id();
             // Relasyon: Kinsa ang namaligya? (Individual o Shop)
-            $table->foreignId('seller_id')->constrained('seller')->onDelete('cascade');
+            $table->foreignId('seller_id')->constrained()->onDelete('cascade');
             
             // Relasyon: Unsa ni nga klase nga part? (Engine, Body, etc.)
             $table->foreignId('category_id')->constrained();

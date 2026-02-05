@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::create('motorcycles', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('seller_id')->constrained('seller')->onDelete('cascade');
+            $table->foreignId('seller_id')->constrained()->onDelete('cascade');
             $table->foreignId('brand_id')->constrained()->onDelete('cascade');
             $table->string('model');
-            $table->integer('year_model');
+            $table->year('year_model');
             $table->string('plate_number')->nullable(); //optional kung second hand
             $table->integer('mileage')->default(0);
             $table->decimal('price', 12, 2);
@@ -25,8 +25,6 @@ return new class extends Migration
             $table->boolean('is_registered')->default(true);
             $table->text('description');
             $table->text('issues')->nullable(); //if mint condition leave it blank
-            $table->string('seller_contact');
-            $table->string('location');
             $table->boolean('is_sold')->default(false); //mawala sa listing pag sold na
             $table->timestamps();
         });

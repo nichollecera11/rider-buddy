@@ -9,11 +9,14 @@ class Part extends Model
 {
     use HasFactory; // 2. I-use ni sa sulod sa class
 
-    protected $guarded = [];
-
-   /* public function seller()
-{
-    // Usahay kinahanglan nimo i-specify ang table kung singular imong gamit
-    //return $this->belongsTo(Seller::class, 'seller_id');
-}*/
+    protected $fillable = [
+        'seller_id',
+        'category_id',
+        'part_name',
+        'condition',
+        'description',
+        'price',
+        'stock_quantity',
+        'compatibility',
+    ];
 }

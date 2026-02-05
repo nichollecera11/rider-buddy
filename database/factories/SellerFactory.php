@@ -2,7 +2,9 @@
 
 namespace Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Seller>
@@ -17,10 +19,9 @@ class SellerFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->name(), 
+            'user_id' => User::factory(),
             'image' => null, // Pwede ra null sa pagkakaron
             'shop_name' => fake()->company() . ' Motors', 
-            'seller_name' => fake()->userName(), 
             'address' => fake()->address(),
             'contact_number' => fake()->phoneNumber(),
             'business_permit_no' => 'BP-' . fake()->numberBetween(10000, 99999),

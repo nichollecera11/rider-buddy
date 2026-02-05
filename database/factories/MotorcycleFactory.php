@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Models\Seller;
+use App\Models\Brand;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -17,8 +19,8 @@ class MotorcycleFactory extends Factory
     public function definition(): array
     {
         return [
-        'seller_id' => \App\Models\Seller::factory(), 
-        'brand_id' => \App\Models\Brand::inRandomOrder()->first()->id ?? 1,
+        'seller_id' => Seller::factory(), 
+        'brand_id' => Brand::inRandomOrder()->first()->id ?? 1,
         'model' => fake()->randomElement(['NMAX', 'Click 125i', 'Raider R150', 'PCX 160', 'Sniper 155', 'Aerox 155']),
         'year_model' => fake()->numberBetween(2018, 2024),
         'plate_number' => fake()->bothify('??-####'),
@@ -28,8 +30,7 @@ class MotorcycleFactory extends Factory
         'document_status' => 'complete_original',
         'is_registered' => true,
         'description' => fake()->paragraph(),
-        'seller_contact' => fake()->phoneNumber(),
-        'location' => fake()->city(),
+        'issues'=> fake()->paragraph(),
         'is_sold' => false,
         ];
     }

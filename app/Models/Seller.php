@@ -9,6 +9,14 @@ class Seller extends Model
 {
     use HasFactory;
 
-    protected $table='seller';
-    protected $guarded =[];
-}
+    protected $fillable =[
+        'user_id',
+        'image',
+        'shop_name',
+        'address',
+        'contact_number',
+        'business_permit_no',
+        'has_delivery',
+    ];
+
+    }

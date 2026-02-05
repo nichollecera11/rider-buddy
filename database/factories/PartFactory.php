@@ -1,7 +1,9 @@
 <?php
 
 namespace Database\Factories;
-
+use App\Models\Seller;
+use App\Models\Category;
+use App\Models\Brand;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -18,11 +20,11 @@ class PartFactory extends Factory
     {
         return [
         // Ma-link ni sa seller table (singular)
-        'seller_id' => \App\Models\Seller::factory(), 
+        'seller_id' => Seller::factory(), 
         
         // Magkuha og random category ug brand gikan sa table
-        'category_id' => \App\Models\Category::inRandomOrder()->first()->id ?? 1,
-        'brand_id' => \App\Models\Brand::inRandomOrder()->first()->id ?? 1,
+        'category_id' => Category::inRandomOrder()->first()->id ?? 1,
+        'brand_id' => Brand::inRandomOrder()->first()->id ?? 1,
         
         'part_name' => fake()->randomElement([
             'RCB Brake Lever', 'TDR Spark Plug', 'Mitas Tires', 

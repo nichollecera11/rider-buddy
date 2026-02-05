@@ -11,12 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('seller', function (Blueprint $table) {
+        Schema::create('sellers', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
+            $table->foreignId('user_id')->unique()->constrained()->onDelete('cascade');
             $table->string('image')->nullable(); // Para sa profile/logo ra
-            $table->string('shop_name')->nullable();
-            $table->string('seller_name');
+            $table->string('shop_name')->nullable(); // Himoon natong required para naay brand ang shop
             $table->text('address');
             $table->string('contact_number');
             $table->string('business_permit_no')->nullable(); // Para sa validation

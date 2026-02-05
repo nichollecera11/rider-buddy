@@ -13,11 +13,12 @@ return new class extends Migration
     {
         Schema::create('mechanics', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->unique()->constrained()->onDelete('cascade');
             $table->string('name');
-            $table->string('shop_name');
+            $table->string('shop_name')->nullable();
             $table->string('address');
             $table->string('contact_number');
-            $table->integer('years experience')->default(0);
+            $table->integer('years_experience')->default(0);
             $table->boolean('is_verified')->default(false);
             $table->decimal('service_fee_starts_at', 10, 2)->nullable();
             $table->string('image')->nullable(); // Para sa profile/logo ra

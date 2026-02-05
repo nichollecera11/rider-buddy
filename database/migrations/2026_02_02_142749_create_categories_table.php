@@ -14,7 +14,8 @@ return new class extends Migration
         Schema::create('categories', function (Blueprint $table) {
             $table->id();
             $table->string('name'); // e.g., "Engine Parts", "Accessories", "Suspension"
-            $table->string('slug'); // e.g., "engine-parts" (para sa URL puhon)
+            $table->string('slug')->unique(); // e.g., "engine-parts" (para sa URL puhon)
+            $table->string('image')->nullable();
             $table->timestamps();
         });
     }
