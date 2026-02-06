@@ -19,4 +19,11 @@ class Seller extends Model
         'has_delivery',
     ];
 
+    public function motorcycles(){
+        return $this->hasMany(Motorcycle::class);
+    }
+    public function user(){
+        return $this->belongsTo(User::class);
+    }
+
     }

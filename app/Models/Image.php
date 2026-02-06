@@ -12,4 +12,7 @@ class Image extends Model
         'imageable_type',
         'is_primary',
     ];
+    public function imageable(){
+        return $this->belongsTo(Image::class);
+    }
 }

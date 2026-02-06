@@ -11,4 +11,8 @@ class Brand extends Model
         'slug',
         'logo',
     ];
+
+    public function motorcycles(){
+        return $this->hasMany(Motorcycle::class);
+    }
 }

@@ -3,18 +3,18 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Motorcycle;
+use App\Models\Part;
 
-class MotorcycleController extends Controller
+class PartController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        $motorcycles = Motorcycle::with(['seller', 'brand'])->get();
-        return response()->json($motorcycles);
-        }
+        $parts = Part::with(['seller', 'category'])->get();
+        return response()->json($parts);
+    }
 
     /**
      * Store a newly created resource in storage.
@@ -29,13 +29,12 @@ class MotorcycleController extends Controller
      */
     public function show(string $id)
     {
-        $motorcycle = Motorcycle::with(['seller','brand'])->findOrFail($id);{
-            if(!$motorcycle) {
-                return response()->json(['message'=> 'Motorcycle not found']);
+        $parts = Part::with(['seller', 'category'])->findOrFail($id);{
+            if(!$parts){
+                return response()->json(['message','Parts not found']);
             }
+            return response()->json($parts);
         }
-        return response()->json($motorcycle);
-        
     }
 
     /**
