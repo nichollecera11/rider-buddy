@@ -16,7 +16,4 @@ class Brand extends Model
     {
         return $this->hasMany(Motorcycle::class);
     }
-    public function parts() {
-        return $this->hasMany(Part::class);
-    }
 }
