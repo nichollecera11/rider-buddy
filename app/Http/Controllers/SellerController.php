@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\Seller;
 
 class SellerController extends Controller
 {
@@ -11,7 +12,8 @@ class SellerController extends Controller
      */
     public function index()
     {
-        //
+        $sellers = Seller::with(['user:id,name'])->withCount(['motorcycles', 'parts'])->get();
+        return response()->json($sellers);
     }
 
     /**
@@ -27,7 +29,21 @@ class SellerController extends Controller
      */
     public function show(string $id)
     {
-        //
+        $seller = Seller::with([
+            'user:id,name',
+            'motorcycles.brand',
+            'motorcycles.category',
+            'parts.brand',
+            'parts.category'
+        ])
+            ->withCount(['motorcycles', 'parts'])
+            ->find($id);
+
+        if (!$seller) {
+            return response()->json(['message' => 'Seller/Shop Not Found'], 404);
+        }
+
+        return response()->json($seller);
     }
 
     /**

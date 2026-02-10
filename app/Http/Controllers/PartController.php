@@ -12,7 +12,7 @@ class PartController extends Controller
      */
     public function index()
     {
-        $parts = Part::with(['seller', 'category'])->get();
+        $parts = Part::with(['seller', 'category', 'brand'])->get();
         return response()->json($parts);
     }
 
@@ -29,12 +29,12 @@ class PartController extends Controller
      */
     public function show(string $id)
     {
-        $parts = Part::with(['seller', 'category'])->findOrFail($id);{
-            if(!$parts){
-                return response()->json(['message','Parts not found']);
-            }
-            return response()->json($parts);
+        $parts = Part::with(['seller', 'category', 'brand'])->find($id);
+        if (!$parts) {
+            return response()->json(['message' => 'Parts not found']);
         }
+        return response()->json($parts);
+
     }
 
     /**
