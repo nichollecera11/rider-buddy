@@ -19,13 +19,17 @@ class Part extends Model
         'stock_quantity',
         'compatibility',
     ];
-    
-    public function seller(){
+
+    public function seller()
+    {
         return $this->belongsTo(Seller::class);
     }
 
-    public function category(){
+    public function category()
+    {
         return $this->belongsTo(Category::class);
     }
-
+    public function brand(){
+        return $this->belongsTo(Brand::class);
+    }
 }

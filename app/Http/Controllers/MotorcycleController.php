@@ -14,7 +14,7 @@ class MotorcycleController extends Controller
     {
         $motorcycles = Motorcycle::with(['seller', 'brand'])->get();
         return response()->json($motorcycles);
-        }
+    }
 
     /**
      * Store a newly created resource in storage.
@@ -29,13 +29,13 @@ class MotorcycleController extends Controller
      */
     public function show(string $id)
     {
-        $motorcycle = Motorcycle::with(['seller','brand'])->findOrFail($id);{
-            if(!$motorcycle) {
-                return response()->json(['message'=> 'Motorcycle not found']);
+        $motorcycle = Motorcycle::with(['seller', 'brand'])->findOrFail($id); {
+            if (!$motorcycle) {
+                return response()->json(['message' => 'Motorcycle not found']);
             }
         }
         return response()->json($motorcycle);
-        
+
     }
 
     /**

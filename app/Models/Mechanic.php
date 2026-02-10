@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class Mechanic extends Model
 {
     use HasFactory;
-    protected $fillable =[
+    protected $fillable = [
         'user_id',
         'name',
         'shop_name',
@@ -20,7 +20,8 @@ class Mechanic extends Model
         'image',
     ];
 
-    public function user(){
+    public function user()
+    {
         return $this->belongsTo(User::class);
     }
 }

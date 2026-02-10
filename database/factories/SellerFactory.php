@@ -21,7 +21,7 @@ class SellerFactory extends Factory
         return [
             'user_id' => User::factory(),
             'image' => null, // Pwede ra null sa pagkakaron
-            'shop_name' => fake()->company() . ' Motors', 
+            'shop_name' => fake()->company() . ' Motors',
             'address' => fake()->address(),
             'contact_number' => fake()->phoneNumber(),
             'business_permit_no' => 'BP-' . fake()->numberBetween(10000, 99999),

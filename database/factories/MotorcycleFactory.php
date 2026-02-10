@@ -19,19 +19,19 @@ class MotorcycleFactory extends Factory
     public function definition(): array
     {
         return [
-        'seller_id' => Seller::factory(), 
-        'brand_id' => Brand::inRandomOrder()->first()->id ?? 1,
-        'model' => fake()->randomElement(['NMAX', 'Click 125i', 'Raider R150', 'PCX 160', 'Sniper 155', 'Aerox 155']),
-        'year_model' => fake()->numberBetween(2018, 2024),
-        'plate_number' => fake()->bothify('??-####'),
-        'mileage' => fake()->numberBetween(500, 30000),
-        'price' => fake()->numberBetween(45000, 160000),
-        'condition' => fake()->randomElement(['brand_new', 'second_hand']),
-        'document_status' => 'complete_original',
-        'is_registered' => true,
-        'description' => fake()->paragraph(),
-        'issues'=> fake()->paragraph(),
-        'is_sold' => false,
+            'seller_id' => Seller::factory(),
+            'brand_id' => Brand::inRandomOrder()->first()->id ?? 1,
+            'model' => fake()->randomElement(['NMAX', 'Click 125i', 'Raider R150', 'PCX 160', 'Sniper 155', 'Aerox 155']),
+            'year_model' => fake()->numberBetween(2018, 2024),
+            'plate_number' => fake()->bothify('??-####'),
+            'mileage' => fake()->numberBetween(500, 30000),
+            'price' => fake()->numberBetween(45000, 160000),
+            'condition' => fake()->randomElement(['brand_new', 'second_hand']),
+            'document_status' => 'complete_original',
+            'is_registered' => true,
+            'description' => fake()->paragraph(),
+            'issues' => fake()->paragraph(),
+            'is_sold' => false,
         ];
     }
 }

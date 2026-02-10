@@ -29,9 +29,9 @@ class MechanicController extends Controller
      */
     public function show(string $id)
     {
-        $mechanic = Mechanic::with('user')->findOrFail($id);{
-            if(!$mechanic) {
-                return response()->json(['message'=> 'Mechanic not found']);
+        $mechanic = Mechanic::with('user')->findOrFail($id); {
+            if (!$mechanic) {
+                return response()->json(['message' => 'Mechanic not found']);
             }
             return response()->json($mechanic);
         }

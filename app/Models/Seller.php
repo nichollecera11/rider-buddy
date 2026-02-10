@@ -9,7 +9,7 @@ class Seller extends Model
 {
     use HasFactory;
 
-    protected $fillable =[
+    protected $fillable = [
         'user_id',
         'image',
         'shop_name',
@@ -19,14 +19,17 @@ class Seller extends Model
         'has_delivery',
     ];
 
-    public function motorcycles(){
+    public function motorcycles()
+    {
         return $this->hasMany(Motorcycle::class);
     }
-    public function user(){
+    public function user()
+    {
         return $this->belongsTo(User::class);
     }
-    public function parts(){
+    public function parts()
+    {
         return $this->hasMany(Part::class);
     }
 
-    }
+}

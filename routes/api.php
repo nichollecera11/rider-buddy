@@ -22,5 +22,5 @@ Route::get('/mechanics', [MechanicController::class, 'index']);
 Route::get('/mechanics/{id}', [MechanicController::class, 'show']);
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/brands', [BrandController::class, 'index']);
-Route::get('/sellers',[SellerController::class, 'index']);
-Route::get('/sellers/{id}',[SellerController::class, 'show']);
+Route::get('/sellers', [SellerController::class, 'index']);
+Route::get('/sellers/{id}', [SellerController::class, 'show']);
