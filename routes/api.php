@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\MotorcycleController;
 use App\Http\Controllers\PartController;
 use App\Http\Controllers\SellerController;
+use App\Http\Controllers\AuthController;
 /*
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -24,3 +25,14 @@ Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/brands', [BrandController::class, 'index']);
 Route::get('/sellers', [SellerController::class, 'index']);
 Route::get('/sellers/{id}', [SellerController::class, 'show']);
+Route::post('/register/', [AuthController::class, 'register']);
+Route::post('/login/', [AuthController::class, 'login']);
+
+//Lock Routes
+Route::group(['middleware' => ['auth:sanctum']], function () {
+    Route::post('/parts', [PartController::class, 'store']);
+    Route::put('/parts/{id}', [PartController::class, 'update']);
+    Route::delete('/parts/{id}', [PartController::class, 'destroy']);
+
+    Route::post('/logout', [AuthController::class, 'logout']);
+});
