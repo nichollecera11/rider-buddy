@@ -32,7 +32,7 @@ class AuthController extends Controller
 
         //Login
         $fields = $request->validate([
-            'username' => 'required|string',
+            'email' => 'required|string',
             'password' => 'required|string|'
         ]);
 
@@ -41,7 +41,7 @@ class AuthController extends Controller
 
         //Check password
 
-        if (!$user || Hash::check($fields['password'], $user->password)) {
+        if (!$user || !Hash::check($fields['password'], $user->password)) {
             return response()->json(['message' => 'Password is incorrect'], 401);
 
 

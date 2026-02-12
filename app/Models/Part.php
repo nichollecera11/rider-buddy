@@ -12,6 +12,7 @@ class Part extends Model
     protected $fillable = [
         'seller_id',
         'category_id',
+        'brand_id',
         'part_name',
         'condition',
         'description',

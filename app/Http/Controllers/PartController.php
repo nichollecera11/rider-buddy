@@ -21,7 +21,22 @@ class PartController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $fields = $request->validate([
+            'seller_id' => 'required|exists:sellers,id',
+            'category_id' => 'required|exists:categories,id',
+            'brand_id' => 'required|exists:brands,id',
+            'part_name' => 'required|string|max:255',
+            'condition' => 'required|in:new,used',
+            'description' => 'required|string',
+            'price' => 'required|numeric|min:0',
+            'stock_quantity' => 'required|integer|min:0',
+            'compatibility' => 'required|string',
+
+
+        ]);
+        $part = Part::create($fields);
+
+        return response()->json(['message' => 'Parts Saved', 'data' => $part], 201);
     }
 
     /**

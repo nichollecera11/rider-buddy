@@ -21,7 +21,23 @@ class MechanicController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $fields = $request->validate([
+            'user_id' => 'required|exists:users,id|unique:mechanics,user_id',
+            'name' => 'required|string',
+            'shop_name' => 'nullable|string',
+            'address' => 'required|string',
+            'contact_number' => 'required|string|min:11|max:255',
+            'years_experience' => 'required|integer|min:0|max:20',
+            'service_fee_starts_at' => 'nullable|numeric|min:500|max:10000',
+            'image' => 'nullable|string',
+        ]);
+
+        $mechanic = Mechanic::create($fields);
+
+        return response()->json([
+            'message' => 'Mechanic Profile Created Successfully',
+            'data' => $mechanic
+        ], 201);
     }
 
     /**

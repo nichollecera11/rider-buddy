@@ -6,6 +6,8 @@ use App\Models\Mechanic;
 use App\Models\Motorcycle;
 use App\Models\Seller;
 use App\Models\Part;
+use App\Models\Brand;
+use App\Models\Category;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -37,5 +39,7 @@ class DatabaseSeeder extends Seeder
 
         Mechanic::factory(50)->create();
 
+        
+
     }
-}
+}   

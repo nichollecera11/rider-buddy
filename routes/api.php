@@ -30,9 +30,14 @@ Route::post('/login/', [AuthController::class, 'login']);
 
 //Lock Routes
 Route::group(['middleware' => ['auth:sanctum']], function () {
+    //Parts Routes
     Route::post('/parts', [PartController::class, 'store']);
     Route::put('/parts/{id}', [PartController::class, 'update']);
     Route::delete('/parts/{id}', [PartController::class, 'destroy']);
+    // Mechanic Routes
+    Route::post('/mechanics', [MechanicController::class, 'store']);
+    Route::put('/mechanics{id}', [MechanicController::class, 'update']);
+    Route::delete('/mechanics{id}', [MechanicController::class, 'destroy']);
 
     Route::post('/logout', [AuthController::class, 'logout']);
 });
