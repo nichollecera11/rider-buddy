@@ -23,7 +23,6 @@ class SellerController extends Controller
     public function store(Request $request)
     {
         $fields = $request->validate([
-            'user_id' => 'require|exists:users,id|unique:sellers,id',
             'image' => 'nullable|string',
             'shop_name' => 'nullable|string',
             'address' => 'required|string',
