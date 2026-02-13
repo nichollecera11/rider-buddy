@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Exception;
 use Illuminate\Http\Request;
 use App\Models\Seller;
 
@@ -21,7 +22,36 @@ class SellerController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $fields = $request->validate([
+            'user_id' => 'require|exists:users,id|unique:sellers,id',
+            'image' => 'nullable|string',
+            'shop_name' => 'nullable|string',
+            'address' => 'required|string',
+            'contact_number' => 'required|string|min:11|max:255',
+            'business_permit_no' => 'nullable|string',
+            'has_delivery' => 'boolean',
+        ]);
+
+        $userId = auth()->id();
+
+        try {
+            $seller = Seller::create([
+                'user_id' => $userId,
+                'image' => $fields['image'] ?? null,
+                'shop_name' => $fields['shop_name'] ?? null,
+                'address' => $fields['address'],
+                'contact_number' => $fields['contact_number'],
+                'business_permit_no' => $fields['business_permit_no'] ?? null,
+                'has_delivery' => $fields['has_delivery'] ?? false,
+            ]);
+
+            return response()->json(['message' => 'Seller profile created', 'data' => $seller], 201);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'You already have a seller profile',
+                'error' => $e->getMessage()
+            ], 400);
+        }
     }
 
     /**
