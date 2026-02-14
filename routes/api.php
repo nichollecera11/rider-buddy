@@ -37,7 +37,7 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     // Mechanic Routes
     Route::post('/mechanics', [MechanicController::class, 'store']);
     Route::put('/mechanics{id}', [MechanicController::class, 'update']);
-    Route::delete('/mechanics{id}', [MechanicController::class, 'destroy']);
+    Route::delete('/mechanics/{id}', [MechanicController::class, 'destroy']);
     Route::patch('/mechanics/{id}', [MechanicController::class, 'update']);
     
     Route::post('/logout', [AuthController::class, 'logout']);

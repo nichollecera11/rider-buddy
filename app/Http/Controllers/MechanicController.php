@@ -113,6 +113,18 @@ class MechanicController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        $mechanic = Mechanic::find($id);
+
+        if (!$mechanic) {
+            return response()->json(['message' => 'Mechanic not found'], 404);
+        }
+        if ($mechanic->user_id !== auth()->id()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $mechanic->delete();
+
+        return response()->json(['message' => 'Mechanic Profile Successfully Deleted'], 200);
     }
+
 }
