@@ -105,7 +105,7 @@ class MechanicController extends Controller
 
         $mechanic->update($fields);
 
-        return response()->json(['message' => 'Profile Updated Successfully', 'data' => $mechanic]);
+        return response()->json(['message' => 'Mechanic Profile Updated Successfully', 'data' => $mechanic]);
     }
 
     /**

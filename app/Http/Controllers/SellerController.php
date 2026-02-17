@@ -13,6 +13,9 @@ class SellerController extends Controller
      */
     public function index()
     {
+        //DEBUG
+        // return Seller::where('user_id', auth()->id())->get();
+
         $sellers = Seller::with(['user:id,name'])->withCount(['motorcycles', 'parts'])->get();
         return response()->json($sellers);
     }
@@ -80,7 +83,28 @@ class SellerController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        $seller = Seller::find($id);
+
+        if (!$seller) {
+            return response()->json(['message' => 'Seller not found'], 404);
+        }
+        if ($seller->user_id !== auth()->id()) {
+            return response()->json(['message' => 'Unauthorized User Profile'], 403);
+        }
+
+        $fields = request()->validate([
+            'image' => 'nullable|string',
+            'shop_name' => 'nullable|string',
+            'address' => 'sometimes|required|string',
+            'contact_number' => 'sometimes|required|string',
+            'business_permit_no' => 'nullable|string',
+            'had_delivery' => 'sometimes|boolean',
+        ]);
+
+        $seller->update($fields);
+        return response()->json(['message' => 'Seller Profile Updated Successfully', 'data' => $seller]);
+
+
     }
 
     /**
@@ -88,6 +112,18 @@ class SellerController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        $seller = Seller::find($id);
+
+        if (!$seller) {
+            return response()->json(['message' => 'Seller not found'], 404);
+        }
+
+        if ($seller->user_id !== auth()->id()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $seller->delete();
+
+        return response()->json(['message' => 'Seller Profile Successfully Deleted', 'data' => $seller], 200);
     }
 }

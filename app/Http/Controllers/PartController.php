@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Part;
+use App\Models\Seller;
 
 class PartController extends Controller
 {
@@ -21,8 +22,14 @@ class PartController extends Controller
      */
     public function store(Request $request)
     {
+        $seller = Seller::where('user_id', auth()->id())->first();
+
+        if(!$seller){
+            return response()->json(['message' => 'Need to Create Seller Profile'], 403);
+        }
+
         $fields = $request->validate([
-            'seller_id' => 'required|exists:sellers,id',
+           // 'seller_id' => 'required|exists:sellers,id',
             'category_id' => 'required|exists:categories,id',
             'brand_id' => 'required|exists:brands,id',
             'part_name' => 'required|string|max:255',
@@ -34,6 +41,9 @@ class PartController extends Controller
 
 
         ]);
+
+        $fields['seller_id'] = $seller->id;
+
         $part = Part::create($fields);
 
         return response()->json(['message' => 'Parts Saved', 'data' => $part], 201);
@@ -57,7 +67,34 @@ class PartController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+
+                $part = Part::find($id);
+
+        if (!$part) {
+            return response()->json(['message' => 'Parts not found'], 404);
+        }
+
+        // 2. SECURITY CHECK: Kinahanglan ang Seller sa part mao ang tag-iya sa shop
+        // Kay ang User_id naa man sa Seller profile, kailangan nato i-check ang relation
+        $seller = Seller::where('user_id', auth()->id())->first();
+
+        if (!$seller || $part->seller_id !== $seller->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $fields = $request->validate([
+            'category_id' => 'sometimes|required|exists:categories,id',
+            'brand_id' => 'sometimes|required|exists:brands,id',
+            'part_name' => 'sometimes|required|string|max:255',
+            'condition' => 'sometimes|required|in:new,used',
+            'description' => 'sometimes|required|string',
+            'price' => 'sometimes|required|numeric|min:0',
+            'stock_quantity' => 'sometimes|required|integer|min:0',
+            'compatibility' => 'sometimes|required|string',
+        ]);
+
+        $part->update($fields);
+        return response()->json(['message' => 'Parts Updated Successfully', 'data' => $part]);
     }
 
     /**
@@ -65,6 +102,21 @@ class PartController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+
+        $part = Part::find($id);
+
+        if (!$part) {
+            return response()->json(['message' => "Parts not found"], 404);
+        }
+
+        $seller = Seller::where('user_id', auth()->id())->first();
+
+        if (!$seller || $part->seller_id !== $seller->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $part->delete();
+
+        return response()->json(['message' => ' Parts Deleted Successfully', 'data' => $part], 200);
     }
 }

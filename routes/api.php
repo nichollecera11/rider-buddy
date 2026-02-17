@@ -40,5 +40,11 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::delete('/mechanics/{id}', [MechanicController::class, 'destroy']);
     Route::patch('/mechanics/{id}', [MechanicController::class, 'update']);
     
+    //Seller Routes
+    Route::patch('/sellers/{id}', [SellerController::class, 'update']);
+    Route::put('/sellers{id}', [SellerController::class, 'update']);
+    Route::post('/sellers', [SellerController::class, 'store']);
+    Route::delete('/sellers/{id}', [SellerController::class, 'destroy']);
+
     Route::post('/logout', [AuthController::class, 'logout']);
 });
