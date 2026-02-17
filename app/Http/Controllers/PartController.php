@@ -22,6 +22,7 @@ class PartController extends Controller
      */
     public function store(Request $request)
     {
+        //kwaon sa nato una ang seller para dili nata mag butang ug seller sa seeding
         $seller = Seller::where('user_id', auth()->id())->first();
 
         if(!$seller){
