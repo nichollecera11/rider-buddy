@@ -11,9 +11,40 @@ class MotorcycleController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $motorcycles = Motorcycle::with(['seller', 'brand'])->paginate(10);
+
+        $query = Motorcycle::with(['seller', 'brand']);
+        if ($request->has('search')) {
+            $query->where('model', 'like', '%' . $request->search . '%');
+        }
+        if ($request->has('brand_id')) {
+            $query->where('brand_id', $request->brand_id);
+        }
+        if ($request->has('year_model')) {
+            $query->where('year_model', $request->year_model);
+        }
+        if ($request->has('condition')) {
+            $query->where('condition', $request->condition);
+        }
+        if ($request->has('document_status')) {
+            $query->where('document_status', $request->document_status);
+        }
+        if ($request->has('price')) {
+            $query->where('price', $request->price);
+        }
+        if ($request->has('is_registered')) {
+            $query->where('is_registered', $request->is_registered);
+        }
+        if ($request->has('min_price')) {
+            $query->where('min_price', $request->min_price);
+        }
+        if ($request->has('max_price')) {
+            $query->where('price', '<=', $request->max_price);
+        }
+
+
+        $motorcycles = $query->latest()->paginate(10);
         return response()->json($motorcycles);
     }
 
@@ -29,14 +60,15 @@ class MotorcycleController extends Controller
         }
 
         $fields = $request->validate([
+            // 'seller_id' => 'required|exists:sellers,id',
             'brand_id' => 'required|exists:brands,id',
             'model' => 'required|string|max:255',
             'year_model' => 'required|integer|min:1900|max:' . (date('Y') + 1),
             'plate_number' => 'required|string|unique:motorcycles,plate_number',
             'mileage' => 'required|numeric|min:0',
             'price' => 'required|numeric|min:0',
-            'condition' => 'required|in:new,used',
-            'document_status' => 'required|string', // e.g., OR/CR, Open Deed of Sale
+            'condition' => 'required|in:brand_new, second_hand',
+            'document_status' => 'required|in:complete_original,orig_cr_xerox_or,xerox_only,no_papers', // e.g., OR/CR, Open Deed of Sale
             'is_registered' => 'required|boolean', // 1 para sa true, 0 para sa false
             'description' => 'nullable|string',
             'issues' => 'nullable|string',
@@ -87,8 +119,8 @@ class MotorcycleController extends Controller
             'plate_number' => 'sometimes|required|string|unique:motorcycles,plate_number' . $id,
             'mileage' => 'sometimes|required|numeric|min:0',
             'price' => 'sometimes|required|numeric|min:0',
-            'condition' => 'sometimes|required|in:new,used',
-            'document_status' => 'sometimes|required|string', // e.g., OR/CR, Open Deed of Sale
+            'condition' => 'sometimes|required|in:brand_new, second_hand',
+            'document_status' => 'sometimes|required|in:complete_original,orig_cr_xerox_or,xerox_only,no_papers',
             'is_registered' => 'sometimes|required|boolean', // 1 para sa true, 0 para sa false
             'description' => 'nullable|string',
             'issues' => 'nullable|string',

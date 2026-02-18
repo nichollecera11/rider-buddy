@@ -11,10 +11,38 @@ class PartController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $parts = Part::with(['seller', 'category', 'brand'])->paginate(10);
+
+        $query = Part::with(['seller', 'category', 'brand']);
+        if ($request->has('search')) {
+            $query->where('part_name', 'like', '%' . $request->search . '%');
+        }
+        if ($request->has('brand_id')) {
+            $query->where('brand_id', $request->brand_id);
+        }
+        if ($request->has('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+        if ($request->has('part_name')) {
+            $query->where('part_name', $request->part_name);
+        }
+        if ($request->has('condition')) {
+            $query->where('condition', $request->condition);
+        }
+        if ($request->has('compatibility')) {
+            $query->where('compatibility', $request->compatibility);
+        }
+        if ($request->has('min_price')) {
+            $query->where('price', '>=', $request->min_price);
+        }
+        if ($request->has('max_price')) {
+            $query->where('price', '<=', $request->max_price);
+        }
+        $parts = $query->latest()->paginate(10);
+
         return response()->json($parts);
+
     }
 
     /**
@@ -25,12 +53,12 @@ class PartController extends Controller
         //kwaon sa nato una ang seller para dili nata mag butang ug seller sa seeding
         $seller = Seller::where('user_id', auth()->id())->first();
 
-        if(!$seller){
+        if (!$seller) {
             return response()->json(['message' => 'Need to Create Seller Profile'], 403);
         }
 
         $fields = $request->validate([
-           // 'seller_id' => 'required|exists:sellers,id',
+            // 'seller_id' => 'required|exists:sellers,id',
             'category_id' => 'required|exists:categories,id',
             'brand_id' => 'required|exists:brands,id',
             'part_name' => 'required|string|max:255',
@@ -55,11 +83,11 @@ class PartController extends Controller
      */
     public function show(string $id)
     {
-        $parts = Part::with(['seller', 'category', 'brand'])->find($id);
-        if (!$parts) {
+        $part = Part::with(['seller', 'category', 'brand'])->find($id);
+        if (!$part) {
             return response()->json(['message' => 'Parts not found']);
         }
-        return response()->json($parts);
+        return response()->json($part);
 
     }
 
@@ -69,7 +97,7 @@ class PartController extends Controller
     public function update(Request $request, string $id)
     {
 
-                $part = Part::find($id);
+        $part = Part::find($id);
 
         if (!$part) {
             return response()->json(['message' => 'Parts not found'], 404);

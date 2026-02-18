@@ -14,37 +14,27 @@ use App\Http\Controllers\AuthController;
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum'); */
+// --- Public Routes (Walay Login) ---
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
 
-Route::get('/motorcycles', [MotorcycleController::class, 'index']);
-Route::get('/motorcycles/{id}', [MotorcycleController::class, 'index']);
-Route::get('/parts', [PartController::class, 'index']);
-Route::get('/parts/{id}', [PartController::class, 'index']);
-Route::get('/mechanics', [MechanicController::class, 'index']);
-Route::get('/mechanics/{id}', [MechanicController::class, 'show']);
-Route::get('/categories', [CategoryController::class, 'index']);
-Route::get('/brands', [BrandController::class, 'index']);
-Route::get('/sellers', [SellerController::class, 'index']);
-Route::get('/sellers/{id}', [SellerController::class, 'show']);
-Route::post('/register/', [AuthController::class, 'register']);
-Route::post('/login/', [AuthController::class, 'login']);
+// Mao ni ang "Clean Way" para sa mga listahan nga pwedeng makita sa tanan
+Route::apiResource('motorcycles', MotorcycleController::class)->only(['index', 'show']);
+Route::apiResource('parts', PartController::class)->only(['index', 'show']);
+Route::apiResource('mechanics', MechanicController::class)->only(['index', 'show']);
+Route::apiResource('sellers', SellerController::class)->only(['index', 'show']);
+Route::apiResource('categories', CategoryController::class)->only(['index']);
+Route::apiResource('brands', BrandController::class)->only(['index']);
 
-//Lock Routes
+
+// --- Protected Routes (Kinahanglan Login) ---
 Route::group(['middleware' => ['auth:sanctum']], function () {
-    //Parts Routes
-    Route::post('/parts', [PartController::class, 'store']);
-    Route::put('/parts/{id}', [PartController::class, 'update']);
-    Route::delete('/parts/{id}', [PartController::class, 'destroy']);
-    // Mechanic Routes
-    Route::post('/mechanics', [MechanicController::class, 'store']);
-    Route::put('/mechanics{id}', [MechanicController::class, 'update']);
-    Route::delete('/mechanics/{id}', [MechanicController::class, 'destroy']);
-    Route::patch('/mechanics/{id}', [MechanicController::class, 'update']);
     
-    //Seller Routes
-    Route::patch('/sellers/{id}', [SellerController::class, 'update']);
-    Route::put('/sellers{id}', [SellerController::class, 'update']);
-    Route::post('/sellers', [SellerController::class, 'store']);
-    Route::delete('/sellers/{id}', [SellerController::class, 'destroy']);
+    // Ang apiResource automatic na maghimo sa store, update (PUT/PATCH), ug destroy
+    Route::apiResource('motorcycles', MotorcycleController::class)->except(['index', 'show']);
+    Route::apiResource('parts', PartController::class)->except(['index', 'show']);
+    Route::apiResource('mechanics', MechanicController::class)->except(['index', 'show']);
+    Route::apiResource('sellers', SellerController::class)->except(['index', 'show']);
 
     Route::post('/logout', [AuthController::class, 'logout']);
 });
