@@ -39,6 +39,9 @@ class PartController extends Controller
         if ($request->has('max_price')) {
             $query->where('price', '<=', $request->max_price);
         }
+        if ($request->has('price')) {
+            $query->where('price', $request->price);
+        }
         $parts = $query->latest()->paginate(10);
 
         return response()->json($parts);
