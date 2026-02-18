@@ -13,7 +13,7 @@ class PartController extends Controller
      */
     public function index()
     {
-        $parts = Part::with(['seller', 'category', 'brand'])->get();
+        $parts = Part::with(['seller', 'category', 'brand'])->paginate(10);
         return response()->json($parts);
     }
 
