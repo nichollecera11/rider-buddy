@@ -16,4 +16,10 @@ class Image extends Model
     {
         return $this->belongsTo(Image::class);
     }
+    protected $appends = ['full_url'];
+
+    public function getUrlAttribute()
+{
+    return asset('storage/' . $this->path);
+}
 }

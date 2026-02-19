@@ -11,9 +11,22 @@ class MechanicController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $mechanics = Mechanic::with('user')->get();
+        $query = Mechanic::with(['user', 'images']);
+
+        $query->when($request->search, function ($q, $search) {
+            $q->where(function ($inner) use ($search) {
+                $inner->where('name', 'like', "%{$search}")->orWhere('address', 'like', "%{$search}");
+            });
+        })->when($request->min_exp, function ($q, $exp) {
+            $q->where('years_experience', '<=', $exp);
+        })->when($request->service_fee, function ($q, $fee) {
+            $q->where('service_fee_starts_at', '<=', $fee);
+        });
+
+        $mechanics = $query->latest()->paginate(10);
+
         return response()->json($mechanics);
     }
 
@@ -22,6 +35,11 @@ class MechanicController extends Controller
      */
     public function store(Request $request)
     {
+
+        //I-uncomment ni para makita nato kon unsa gyuy sulod sa request
+        // return response()->json($request->allFiles());
+
+
         $fields = $request->validate([
             'name' => 'required|string',
             'shop_name' => 'nullable|string',
@@ -29,10 +47,13 @@ class MechanicController extends Controller
             'contact_number' => 'required|string|min:11|max:255',
             'years_experience' => 'required|integer|min:0|max:20',
             'service_fee_starts_at' => 'nullable|numeric|min:500|max:10000',
-            'image' => 'nullable|string',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
 
+
+
         $userId = auth()->id();
+
 
         try {
             $mechanic = Mechanic::create([
@@ -43,13 +64,25 @@ class MechanicController extends Controller
                 'contact_number' => $fields['contact_number'],
                 'years_experience' => $fields['years_experience'],
                 'service_fee_starts_at' => $fields['service_fee_starts_at'] ?? null,
-                'image' => $fields['image'] ?? null,
 
             ]);
 
+
+            if ($request->hasFile('image')) {
+                $path = $request->file('image')->store('mechanics', 'public');
+                $mechanic->images()->create([
+                    'path' => $path,
+                    'is_primary' => true,
+                    'imageable_id' => $mechanic->id,
+                    'imageable_type' => Mechanic::class,
+                ]);
+            }
+
+
+
             return response()->json([
                 'message' => 'Mechanic Profile Created Successfully',
-                'data' => $mechanic
+                'data' => $mechanic->load('images')
             ], 201);
         } catch (Exception $e) {
             return response()->json([
@@ -65,7 +98,7 @@ class MechanicController extends Controller
     {
         $mechanic = Mechanic::with('user')->find($id); {
             if (!$mechanic) {
-                return response()->json(['message' => 'Mechanic not found']);
+                return response()->json(['message' => 'Mechanic not found'], 404);
             }
             return response()->json($mechanic);
         }
@@ -100,12 +133,17 @@ class MechanicController extends Controller
             'shop_name' => 'nullable|string',
             'address' => 'sometimes|required|string|',
             'service_fee_starts_at' => 'nullable|numeric|',
-            'image' => 'nullable|string',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
+
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('mechanics', 'public');
+            $fields['image'] = $path;
+        }
 
         $mechanic->update($fields);
 
-        return response()->json(['message' => 'Mechanic Profile Updated Successfully', 'data' => $mechanic]);
+        return response()->json(['message' => 'Mechanic Profile Updated Successfully', 'data' => $mechanic->load('image'), 201]);
     }
 
     /**
