@@ -20,7 +20,8 @@ class Seller extends Model
         'description',
         'latitude',
         'longitude',
-        'is_official_store'
+        'is_official_store',
+        'is_verified'
     ];
 
     public function motorcycles()
@@ -34,6 +35,10 @@ class Seller extends Model
     public function parts()
     {
         return $this->hasMany(Part::class);
+    }
+    public function images()
+    {
+        return $this->morphMany(Image::class, 'imageable');
     }
 
 }

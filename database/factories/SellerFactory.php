@@ -29,7 +29,8 @@ class SellerFactory extends Factory
             'description' =>$this->faker->sentence(),
             'latitude' => $this->faker->latitude(10.2, 10.4), // Random Cebu-ish lat
             'longitude' => $this->faker->longitude(123.8, 124.0),
-            'is_official_store' => $this->faker->boolean(),            
+            'is_official_store' => $this->faker->boolean(),     
+            'is_verified' => $this->faker->boolean(),       
         ];
     }
 }

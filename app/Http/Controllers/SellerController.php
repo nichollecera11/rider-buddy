@@ -26,12 +26,15 @@ class SellerController extends Controller
     public function store(Request $request)
     {
         $fields = $request->validate([
-            'image' => 'nullable|string',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
             'shop_name' => 'nullable|string',
             'address' => 'required|string',
             'contact_number' => 'required|string|min:11|max:255',
             'business_permit_no' => 'nullable|string',
             'has_delivery' => 'boolean',
+            'description' => 'nullable|string',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
         ]);
 
         $userId = auth()->id();
@@ -39,17 +42,26 @@ class SellerController extends Controller
         try {
             $seller = Seller::create([
                 'user_id' => $userId,
-                'image' => $fields['image'] ?? null,
                 'shop_name' => $fields['shop_name'] ?? null,
                 'address' => $fields['address'],
                 'contact_number' => $fields['contact_number'],
                 'business_permit_no' => $fields['business_permit_no'] ?? null,
                 'has_delivery' => $fields['has_delivery'] ?? false,
+                'description' => $fields['description'] ?? null,
+                'latitude' => $fields['latitude'] ?? null,
+                'longitude' => $fields['longitude'] ?? null,
+
             ]);
 
-            
+            if ($request->hasFile('image')) {
+                $path = $request->file('image')->store('images/sellers', 'public');
+                $seller->images()->create([
+                    'path' => $path,
+                    'is_primary' => true,
+                ]);
+            }
 
-            return response()->json(['message' => 'Seller profile created', 'data' => $seller], 201);
+            return response()->json(['message' => 'Seller profile created', 'data' => $seller->load('images')], 201);
         } catch (Exception $e) {
             return response()->json([
                 'message' => 'You already have a seller profile',

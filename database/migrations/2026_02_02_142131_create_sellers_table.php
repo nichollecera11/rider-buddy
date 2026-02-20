@@ -23,7 +23,7 @@ return new class extends Migration {
             $table->decimal('latitude', 10, 8)->nullable();
             $table->decimal('longitude', 11, 8)->nullable();
             $table->boolean('is_official_store')->default(false);
-            $table->string('image')->nullable();
+            $table->boolean('is_verified')->default(false);
             $table->timestamps();
         });
     }
