@@ -16,7 +16,7 @@ class SellerController extends Controller
         //DEBUG
         // return Seller::where('user_id', auth()->id())->get();
 
-        $sellers = Seller::with(['user:id,name'])->withCount(['motorcycles', 'parts'])->get();
+        $sellers = Seller::with(['user:id,name', 'images '])->withCount(['motorcycles', 'parts'])->get();
         return response()->json($sellers);
     }
 
@@ -46,6 +46,8 @@ class SellerController extends Controller
                 'business_permit_no' => $fields['business_permit_no'] ?? null,
                 'has_delivery' => $fields['has_delivery'] ?? false,
             ]);
+
+            
 
             return response()->json(['message' => 'Seller profile created', 'data' => $seller], 201);
         } catch (Exception $e) {

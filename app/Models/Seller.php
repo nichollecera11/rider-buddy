@@ -17,6 +17,10 @@ class Seller extends Model
         'contact_number',
         'business_permit_no',
         'has_delivery',
+        'description',
+        'latitude',
+        'longitude',
+        'is_official_store'
     ];
 
     public function motorcycles()

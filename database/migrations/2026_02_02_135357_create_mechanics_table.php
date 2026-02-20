@@ -16,11 +16,18 @@ return new class extends Migration {
             $table->string('name');
             $table->string('shop_name')->nullable();
             $table->string('address');
+            $table->text('bio')->nullable();
+            $table->string('specialization')->nullable(); // e.g. "Electrical, Engine, FI"
             $table->string('contact_number');
+            $table->string('emergency_contact')->nullable(); // Optional extra contact
             $table->integer('years_experience')->default(0);
             $table->boolean('is_verified')->default(false);
+            $table->boolean('is_available')->default(true); // Status sa mekaniko karon
+            // --- LOCATION DATA ---
+            $table->decimal('latitude', 10, 8)->nullable();
+            $table->decimal('longitude', 11, 8)->nullable();
             $table->decimal('service_fee_starts_at', 10, 2)->nullable();
-            $table->string('image')->nullable(); // Para sa profile/logo ra
+            $table->string('image')->nullable(); // Pwede na ni nimo i-delete puhon kay polymorphic naman ta
             $table->timestamps();
         });
     }

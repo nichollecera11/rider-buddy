@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Mechanic;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class MechanicController extends Controller
 {
@@ -17,12 +18,17 @@ class MechanicController extends Controller
 
         $query->when($request->search, function ($q, $search) {
             $q->where(function ($inner) use ($search) {
-                $inner->where('name', 'like', "%{$search}")->orWhere('address', 'like', "%{$search}");
+                $inner->where('name', 'like', "%{$search}%")
+                    ->orWhere('address', 'like', "%{$search}%")
+                    ->orWhere('specialization', 'like', "%{$search}%")
+                    ->orWhere('shop_name', 'like', "%{$search}%");
             });
         })->when($request->min_exp, function ($q, $exp) {
-            $q->where('years_experience', '<=', $exp);
+            $q->where('years_experience', '>=', $exp);
         })->when($request->service_fee, function ($q, $fee) {
             $q->where('service_fee_starts_at', '<=', $fee);
+        })->when($request->available, function($q){
+            $q->where('is_available', true);
         });
 
         $mechanics = $query->latest()->paginate(10);
@@ -48,12 +54,14 @@ class MechanicController extends Controller
             'years_experience' => 'required|integer|min:0|max:20',
             'service_fee_starts_at' => 'nullable|numeric|min:500|max:10000',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
+            'bio' => 'nullable|string',
+            'specialization' => 'nullable|string',
+            'latitude' => 'nullable|numeric',
+            'longitude' => 'nullable|numeric',
+            'emergency_contact' => 'nullable|string',
         ]);
 
-
-
         $userId = auth()->id();
-
 
         try {
             $mechanic = Mechanic::create([
@@ -62,14 +70,19 @@ class MechanicController extends Controller
                 'shop_name' => $fields['shop_name'] ?? null,
                 'address' => $fields['address'],
                 'contact_number' => $fields['contact_number'],
+                'emergency_contact' => $fields['emergency_contact'] ?? null,
                 'years_experience' => $fields['years_experience'],
                 'service_fee_starts_at' => $fields['service_fee_starts_at'] ?? null,
+                'bio' => $request->bio,
+                'specialization' => $request->specialization,
+                'latitude' => $request->latitude,
+                'longitude' => $request->longitude,
+                'is_available' => true, // default available basta bag-ong kumpuni
 
             ]);
 
-
             if ($request->hasFile('image')) {
-                $path = $request->file('image')->store('mechanics', 'public');
+                $path = $request->file('image')->store('images/mechanics', 'public');
                 $mechanic->images()->create([
                     'path' => $path,
                     'is_primary' => true,
@@ -78,15 +91,13 @@ class MechanicController extends Controller
                 ]);
             }
 
-
-
             return response()->json([
                 'message' => 'Mechanic Profile Created Successfully',
                 'data' => $mechanic->load('images')
             ], 201);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'You already have a mechanic profile',
+                'message' => 'Profile Already Exists',
                 'error' => $e->getMessage()
             ], 400);
         }
@@ -137,7 +148,7 @@ class MechanicController extends Controller
         ]);
 
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('mechanics', 'public');
+            $path = $request->file('image')->store('images/mechanics', 'public');
             $fields['image'] = $path;
         }
 
@@ -158,6 +169,16 @@ class MechanicController extends Controller
         }
         if ($mechanic->user_id !== auth()->id()) {
             return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $images = $mechanic->images;
+
+        foreach ($images as $image) {
+            if (Storage::disk('public')->exists($image->path)) {
+                Storage::disk('public')->delete($image->path);
+            }
+
+            $image->delete();
         }
 
         $mechanic->delete();

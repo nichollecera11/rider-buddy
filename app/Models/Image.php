@@ -18,7 +18,7 @@ class Image extends Model
     }
     protected $appends = ['full_url'];
 
-    public function getUrlAttribute()
+    public function getFullUrlAttribute()
 {
     return asset('storage/' . $this->path);
 }

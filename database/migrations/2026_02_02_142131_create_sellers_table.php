@@ -19,6 +19,11 @@ return new class extends Migration {
             $table->string('contact_number');
             $table->string('business_permit_no')->nullable(); // Para sa validation
             $table->boolean('has_delivery')->default(false); // Kung mo-deliver ba silag parts
+            $table->string('description')->nullable();
+            $table->decimal('latitude', 10, 8)->nullable();
+            $table->decimal('longitude', 11, 8)->nullable();
+            $table->boolean('is_official_store')->default(false);
+            $table->string('image')->nullable();
             $table->timestamps();
         });
     }

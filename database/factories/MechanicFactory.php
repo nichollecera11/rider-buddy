@@ -23,9 +23,14 @@ class MechanicFactory extends Factory
             'shop_name' => $this->faker->company() . 'Dodoy',
             'address' => $this->faker->address(),
             'contact_number' => $this->faker->phoneNumber(),
+            'bio' => $this->faker->paragraph(),
+            'specialization' => $this->faker->randomElement(['Electrical', 'Engine Overhaul', 'FI Specialist', 'Tune up']),
             'years_experience' => $this->faker->numberBetween(1, 20),
             'is_verified' => $this->faker->boolean(),
-            'service_fee_starts_at' => $this->faker->randomFloat(2, 500, 1000),
+            'is_available' => true,
+            'latitude' => $this->faker->latitude(10.2, 10.4), // Random Cebu-ish lat
+            'longitude' => $this->faker->longitude(123.8, 124.0), // Random Cebu-ish long
+            'service_fee_starts_at' => $this->faker->randomFloat(2, 500, 2000),
             'image' => 'mechanic_default.jpg',
         ];
     }
