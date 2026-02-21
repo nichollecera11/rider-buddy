@@ -23,6 +23,8 @@ class Mechanic extends Model
         'latitude',
         'longitude',
         'service_fee_starts_at',
+        'is_24_7',
+        'offers_towing',
         'image',
     ];
 

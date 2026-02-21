@@ -27,19 +27,25 @@ class DatabaseSeeder extends Seeder
         Seller::factory(20)->create()->each(function ($seller) {
 
             // 3. Kada seller, paghimo og 3 ka motorcycles
-            Motorcycle::factory(5)->create([
+            Motorcycle::factory(20)->create([
                 'seller_id' => $seller->id,
             ]);
 
             // 4. Kada seller, paghimo sab og 5 ka parts
-            Part::factory(10)->create([
+            Part::factory(30)->create([
                 'seller_id' => $seller->id,
             ]);
         });
 
         Mechanic::factory(50)->create();
 
-        
+        Mechanic::factory(10)->create([
+            'specialization' => 'Vulcanizing',
+            'is_24_7' => true,
+            'offers_towing' => true,
+        ]);
+
+
 
     }
-}   
+}

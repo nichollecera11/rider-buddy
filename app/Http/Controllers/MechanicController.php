@@ -27,9 +27,34 @@ class MechanicController extends Controller
             $q->where('years_experience', '>=', $exp);
         })->when($request->service_fee, function ($q, $fee) {
             $q->where('service_fee_starts_at', '<=', $fee);
-        })->when($request->available, function($q){
+        })->when($request->available, function ($q) {
             $q->where('is_available', true);
         });
+
+        //24/7
+        $query->when($request->is_24_7, function ($q) {
+            $q->where('is_24_7', true);
+        });
+
+        //Towing
+        $query->when($request->offers_towing, function ($q) {
+            $q->where('offers_towing', true);
+        });
+
+        //Emergency
+        $query->when($request->emergency_vulcanizing, function ($q) {
+            $q->where('specialization', 'Like', '%Vulcanizing%')
+                ->where('is_24_7', true)
+                ->where('offers_towing', true);
+        });
+
+
+        // $rescuers = Mechanic::where('is_available', true)
+        // ->where(function($query){
+        //     $query->where('specialization', 'Like', '%Vulcanizing%')
+        //     ->orWhere('offers_towing', true);
+        //     })
+        //     ->where('is_24_7', true)->get();
 
         $mechanics = $query->latest()->paginate(10);
 
@@ -41,24 +66,22 @@ class MechanicController extends Controller
      */
     public function store(Request $request)
     {
-
-        //I-uncomment ni para makita nato kon unsa gyuy sulod sa request
-        // return response()->json($request->allFiles());
-
-
         $fields = $request->validate([
             'name' => 'required|string',
             'shop_name' => 'nullable|string',
             'address' => 'required|string',
-            'contact_number' => 'required|string|min:11|max:255',
-            'years_experience' => 'required|integer|min:0|max:20',
-            'service_fee_starts_at' => 'nullable|numeric|min:500|max:10000',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
             'bio' => 'nullable|string',
             'specialization' => 'nullable|string',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
+            'contact_number' => 'required|string|min:11|max:255',
             'emergency_contact' => 'nullable|string',
+            'years_experience' => 'required|integer|min:0|max:50', // Gi-adjust nako gamay basig naay master mechanic           
+            'is_available' => 'boolean',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
+            'service_fee_starts_at' => 'nullable|numeric|min:0',
+            'is_24_7' => 'boolean',
+            'offers_towing' => 'boolean',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
 
         $userId = auth()->id();
@@ -69,35 +92,39 @@ class MechanicController extends Controller
                 'name' => $fields['name'],
                 'shop_name' => $fields['shop_name'] ?? null,
                 'address' => $fields['address'],
+                'bio' => $fields['bio'] ?? null,
+                'specialization' => $fields['specialization'] ?? null,
                 'contact_number' => $fields['contact_number'],
                 'emergency_contact' => $fields['emergency_contact'] ?? null,
                 'years_experience' => $fields['years_experience'],
+                'latitude' => $fields['latitude'] ?? null,
+                'longitude' => $fields['longitude'] ?? null,
                 'service_fee_starts_at' => $fields['service_fee_starts_at'] ?? null,
-                'bio' => $request->bio,
-                'specialization' => $request->specialization,
-                'latitude' => $request->latitude,
-                'longitude' => $request->longitude,
-                'is_available' => true, // default available basta bag-ong kumpuni
-
+                // --- BOOLEAN HANDLING ---
+                // Naggamit tag $request->boolean() para sure nga true/false ang ma-save, dili null
+                'is_24_7' => $request->boolean('is_24_7'),
+                'offers_towing' => $request->boolean('offers_towing'),
+                'is_available' => $request->has('is_available') ? $request->boolean('is_available') : true,
             ]);
 
+            // --- POLYMORPHIC IMAGE LOGIC ---
+            // I-awat nato sa imong Seller/Mechanic image format
             if ($request->hasFile('image')) {
                 $path = $request->file('image')->store('images/mechanics', 'public');
                 $mechanic->images()->create([
                     'path' => $path,
                     'is_primary' => true,
-                    'imageable_id' => $mechanic->id,
-                    'imageable_type' => Mechanic::class,
                 ]);
             }
 
             return response()->json([
-                'message' => 'Mechanic Profile Created Successfully',
+                'message' => 'Mechanic profile created successfully',
                 'data' => $mechanic->load('images')
             ], 201);
+
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Profile Already Exists',
+                'message' => 'Error creating mechanic profile',
                 'error' => $e->getMessage()
             ], 400);
         }
@@ -143,7 +170,16 @@ class MechanicController extends Controller
             'name' => 'sometimes|required|string',
             'shop_name' => 'nullable|string',
             'address' => 'sometimes|required|string|',
+            'contact_number' => 'sometimes|required|string',
+            'emergency_contact' => 'nullable|string',
+            'years_experience' => 'sometimes|required|integer',
+            'bio' => 'nullable|string',
+            'specialization' => 'nullable|string',
+            'latitude' => 'nullable|numeric',
+            'longitude' => 'nullable|numeric',
             'service_fee_starts_at' => 'nullable|numeric|',
+            'is_24_7' => 'sometimes|boolean',
+            'offers_towing' => 'sometimes|boolean',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
 

@@ -112,7 +112,7 @@ class SellerController extends Controller
             'address' => 'sometimes|required|string',
             'contact_number' => 'sometimes|required|string',
             'business_permit_no' => 'nullable|string',
-            'had_delivery' => 'sometimes|boolean',
+            'has_delivery' => 'sometimes|boolean',
         ]);
 
         $seller->update($fields);
