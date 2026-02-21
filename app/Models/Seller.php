@@ -21,7 +21,8 @@ class Seller extends Model
         'latitude',
         'longitude',
         'is_official_store',
-        'is_verified'
+        'is_verified',
+        'is_24_7'
     ];
 
     public function motorcycles()

@@ -45,7 +45,8 @@ class MechanicController extends Controller
         $query->when($request->emergency_vulcanizing, function ($q) {
             $q->where('specialization', 'Like', '%Vulcanizing%')
                 ->where('is_24_7', true)
-                ->where('offers_towing', true);
+                // pwede nato ni tangtangon kay strict kaayo si emergency vulcanizing
+                ->where('offers_towing', true); 
         });
 
 

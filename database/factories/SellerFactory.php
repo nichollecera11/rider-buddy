@@ -31,6 +31,7 @@ class SellerFactory extends Factory
             'longitude' => $this->faker->longitude(123.8, 124.0),
             'is_official_store' => $this->faker->boolean(),     
             'is_verified' => $this->faker->boolean(),       
+            'is_24_7' => $this->faker->boolean()
         ];
     }
 }

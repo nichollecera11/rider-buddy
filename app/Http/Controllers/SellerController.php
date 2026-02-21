@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Exception;
 use Illuminate\Http\Request;
 use App\Models\Seller;
+use Illuminate\Support\Facades\Storage;
 
 class SellerController extends Controller
 {
@@ -35,6 +36,7 @@ class SellerController extends Controller
             'description' => 'nullable|string',
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
+            'is_24_7' => 'boolean'
         ]);
 
         $userId = auth()->id();
@@ -46,11 +48,11 @@ class SellerController extends Controller
                 'address' => $fields['address'],
                 'contact_number' => $fields['contact_number'],
                 'business_permit_no' => $fields['business_permit_no'] ?? null,
-                'has_delivery' => $fields['has_delivery'] ?? false,
+                'has_delivery' => $request->boolean['has_delivery'],
                 'description' => $fields['description'] ?? null,
                 'latitude' => $fields['latitude'] ?? null,
                 'longitude' => $fields['longitude'] ?? null,
-
+                'is_24_7' => $request->boolean['is_24_7']
             ]);
 
             if ($request->hasFile('image')) {
@@ -107,13 +109,22 @@ class SellerController extends Controller
         }
 
         $fields = request()->validate([
-            'image' => 'nullable|string',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
             'shop_name' => 'nullable|string',
             'address' => 'sometimes|required|string',
             'contact_number' => 'sometimes|required|string',
             'business_permit_no' => 'nullable|string',
             'has_delivery' => 'sometimes|boolean',
+            'description' => 'nullable|string',
+            'latitude' => 'nullable|numeric',
+            'longitude' => 'nullable|numeric',
+            'is_24_7' => 'sometimes|boolean'
         ]);
+
+        if ($request->hasFile('image')){
+            $path = $request->file('image')->store('images/sellers', 'public');
+            $fields['image'] = $path;
+        }
 
         $seller->update($fields);
         return response()->json(['message' => 'Seller Profile Updated Successfully', 'data' => $seller]);
@@ -134,6 +145,14 @@ class SellerController extends Controller
 
         if ($seller->user_id !== auth()->id()) {
             return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $images = $seller->images;
+
+        foreach ($images as $image) {
+            if (Storage::disk('public')->exists($image->path)){
+                Storage::disk('public')->delete($image->path);
+            }
         }
 
         $seller->delete();

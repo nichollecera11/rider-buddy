@@ -24,6 +24,7 @@ return new class extends Migration {
             $table->decimal('longitude', 11, 8)->nullable();
             $table->boolean('is_official_store')->default(false);
             $table->boolean('is_verified')->default(false);
+            $table->boolean('is_24_7')->default(false);
             $table->timestamps();
         });
     }
