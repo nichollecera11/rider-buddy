@@ -22,6 +22,13 @@ class SellerController extends Controller
 
         $query = Seller::with(['user:id,name','images']);
 
+        if($request->lat && $request->lng){
+            $query->withDistance($request->lat, $request->lng)
+            ->orderBy('distance', 'asc');
+        }else{
+            $query->latest();
+        }
+
         $query->when($request->search, function ($q, $search){
             $q->where(function($inner) use ($search){
                 $inner->where('shop_name', 'like', "%{$search}%")

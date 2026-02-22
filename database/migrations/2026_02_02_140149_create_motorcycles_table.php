@@ -16,8 +16,13 @@ return new class extends Migration {
             $table->foreignId('brand_id')->constrained()->onDelete('cascade');
             $table->string('model');
             $table->year('year_model');
+            $table->string('color')->nullable();
             $table->string('plate_number')->nullable(); //optional kung second hand
             $table->integer('mileage')->default(0);
+            $table->integer('engine_capacity')->nullable();
+            $table->enum('transmission', ['manual', 'automatic', 'semi_automatic'])->nullable();
+            $table->enum('fuel_type', ['gasoline', 'electric'])->default('gasoline');
+            $table->string('current_location')->nullable();
             $table->decimal('price', 12, 2);
             $table->enum('condition', ['brand_new', 'second_hand']);
             $table->enum('document_status', ['complete_original', 'orig_cr_xerox_or', 'xerox_only', 'no_papers'])->default('complete_original');
