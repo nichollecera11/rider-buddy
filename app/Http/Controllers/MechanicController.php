@@ -16,6 +16,12 @@ class MechanicController extends Controller
     {
         $query = Mechanic::with(['user', 'images']);
 
+        if ($request->lat && $request->lng) {
+            $query->withDistance($request->lat, $request->lng)->orderBy('distance', 'asc');
+        } else {
+            $query->latest();
+        }
+
         $query->when($request->search, function ($q, $search) {
             $q->where(function ($inner) use ($search) {
                 $inner->where('name', 'like', "%{$search}%")
@@ -46,7 +52,7 @@ class MechanicController extends Controller
             $q->where('specialization', 'Like', '%Vulcanizing%')
                 ->where('is_24_7', true)
                 // pwede nato ni tangtangon kay strict kaayo si emergency vulcanizing
-                ->where('offers_towing', true); 
+                ->where('offers_towing', true);
         });
 
 

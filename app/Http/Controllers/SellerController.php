@@ -12,12 +12,31 @@ class SellerController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         //DEBUG
         // return Seller::where('user_id', auth()->id())->get();
 
-        $sellers = Seller::with(['user:id,name', 'images '])->withCount(['motorcycles', 'parts'])->get();
+        // $sellers = Seller::with(['user:id,name', 'images '])->withCount(['motorcycles', 'parts'])->get();
+        // return response()->json($sellers);
+
+        $query = Seller::with(['user:id,name','images']);
+
+        $query->when($request->search, function ($q, $search){
+            $q->where(function($inner) use ($search){
+                $inner->where('shop_name', 'like', "%{$search}%")
+                ->orWhere('address', 'like', "%{$search}%")
+                ->orWhere('description', 'like', "%{$search}%");
+            });
+        })->when($request->is_official, function($q){
+            $q->where('is_official_store', true);
+        })->when($request->has_delivery, function($q){
+            $q->where('has_delivery', true);
+        })->when($request->is_24_7, function($q){
+            $q->where('is_24_7', true);
+        });
+
+        $sellers = $query->latest()->paginate(10);
         return response()->json($sellers);
     }
 
@@ -48,11 +67,11 @@ class SellerController extends Controller
                 'address' => $fields['address'],
                 'contact_number' => $fields['contact_number'],
                 'business_permit_no' => $fields['business_permit_no'] ?? null,
-                'has_delivery' => $request->boolean['has_delivery'],
+                'has_delivery' => $request->boolean('has_delivery'),
                 'description' => $fields['description'] ?? null,
                 'latitude' => $fields['latitude'] ?? null,
                 'longitude' => $fields['longitude'] ?? null,
-                'is_24_7' => $request->boolean['is_24_7']
+                'is_24_7' => $request->boolean('is_24_7')
             ]);
 
             if ($request->hasFile('image')) {

@@ -36,4 +36,9 @@ class Mechanic extends Model
     {
         return $this->morphMany(Image::class, 'imageable');
     }
+    public function scopeWithDistance($query, $lat, $lng)
+    {
+        // Kini nga formula mo-calculate sa distance (in kilometers)
+        return $query->selectRaw("*, (6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) AS distance", [$lat, $lng, $lat]);
+    }
 }
