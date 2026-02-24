@@ -6,6 +6,7 @@ use Exception;
 use Illuminate\Http\Request;
 use App\Models\Seller;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class SellerController extends Controller
 {
@@ -20,26 +21,26 @@ class SellerController extends Controller
         // $sellers = Seller::with(['user:id,name', 'images '])->withCount(['motorcycles', 'parts'])->get();
         // return response()->json($sellers);
 
-        $query = Seller::with(['user:id,name','images']);
+        $query = Seller::with(['user:id,name', 'images']);
 
-        if($request->lat && $request->lng){
+        if ($request->lat && $request->lng) {
             $query->withDistance($request->lat, $request->lng)
-            ->orderBy('distance', 'asc');
-        }else{
+                ->orderBy('distance', 'asc');
+        } else {
             $query->latest();
         }
 
-        $query->when($request->search, function ($q, $search){
-            $q->where(function($inner) use ($search){
+        $query->when($request->search, function ($q, $search) {
+            $q->where(function ($inner) use ($search) {
                 $inner->where('shop_name', 'like', "%{$search}%")
-                ->orWhere('address', 'like', "%{$search}%")
-                ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('address', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
             });
-        })->when($request->is_official, function($q){
+        })->when($request->is_official, function ($q) {
             $q->where('is_official_store', true);
-        })->when($request->has_delivery, function($q){
+        })->when($request->has_delivery, function ($q) {
             $q->where('has_delivery', true);
-        })->when($request->is_24_7, function($q){
+        })->when($request->is_24_7, function ($q) {
             $q->where('is_24_7', true);
         });
 
@@ -147,7 +148,7 @@ class SellerController extends Controller
             'is_24_7' => 'sometimes|boolean'
         ]);
 
-        if ($request->hasFile('image')){
+        if ($request->hasFile('image')) {
             $path = $request->file('image')->store('images/sellers', 'public');
             $fields['image'] = $path;
         }
@@ -172,17 +173,26 @@ class SellerController extends Controller
         if ($seller->user_id !== auth()->id()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
+        DB::beginTransaction();
+        try {
+            $images = $seller->images;
 
-        $images = $seller->images;
-
-        foreach ($images as $image) {
-            if (Storage::disk('public')->exists($image->path)){
-                Storage::disk('public')->delete($image->path);
+            foreach ($images as $image) {
+                if (Storage::disk('public')->exists($image->path)) {
+                    Storage::disk('public')->delete($image->path);
+                }
             }
+
+            $seller->images()->delete();
+
+            $seller->delete();
+
+            DB::commit();
+
+            return response()->json(['message' => 'Seller Profile Successfully Deleted'], 200);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Delete Failed', 'error' => $e->getMessage()], 500);
         }
-
-        $seller->delete();
-
-        return response()->json(['message' => 'Seller Profile Successfully Deleted', 'data' => $seller], 200);
     }
 }

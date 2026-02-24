@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Mechanic;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class MechanicController extends Controller
@@ -214,19 +215,24 @@ class MechanicController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $images = $mechanic->images;
+        DB::beginTransaction();
 
-        foreach ($images as $image) {
-            if (Storage::disk('public')->exists($image->path)) {
-                Storage::disk('public')->delete($image->path);
+        try {
+
+            $images = $mechanic->images;
+
+            foreach ($images as $image) {
+                if (Storage::disk('public')->exists($image->path)) {
+                    Storage::disk('public')->delete($image->path);
+                }
             }
-
-            $image->delete();
+            $mechanic->images()->delete();
+            $mechanic->delete();
+            DB::commit();
+            return response()->json(['message' => 'Mechanic Profile Successfully Deleted'], 200);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Delete Mechanic Profile Failed', 'error' => $e->getMessage()], 500);
         }
-
-        $mechanic->delete();
-
-        return response()->json(['message' => 'Mechanic Profile Successfully Deleted'], 200);
     }
-
 }
