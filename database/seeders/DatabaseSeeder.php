@@ -23,29 +23,31 @@ class DatabaseSeeder extends Seeder
             BrandSeeder::class,
         ]);
 
-        // 2. Paghimo og 10 ka Sellers
+        // 1. Paghimo og Sellers
         Seller::factory(20)->create()->each(function ($seller) {
 
-            // 3. Kada seller, paghimo og 3 ka motorcycles
-            Motorcycle::factory(20)->create([
+            // 2. Kada seller, paghimo og motorcycles
+            Motorcycle::factory(rand(5, 10))->create([ // Randomize nato para dili uniform tanan
                 'seller_id' => $seller->id,
+                'brand_id' => Brand::inRandomOrder()->first()->id, // Siguroha nga random ang brand
             ]);
 
-            // 4. Kada seller, paghimo sab og 5 ka parts
-            Part::factory(30)->create([
+            // 3. Kada seller, paghimo og parts
+            Part::factory(rand(10, 20))->create([
                 'seller_id' => $seller->id,
+                'brand_id' => Brand::inRandomOrder()->first()->id,
+                'category_id' => Category::inRandomOrder()->first()->id, // Importante ni para sa pisa
             ]);
         });
 
+        // 4. Mechanics
         Mechanic::factory(50)->create();
 
+        // 5. Special Rescue/Vulcanizing
         Mechanic::factory(10)->create([
             'specialization' => 'Vulcanizing',
             'is_24_7' => true,
             'offers_towing' => true,
         ]);
-
-
-
     }
 }

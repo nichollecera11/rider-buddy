@@ -20,7 +20,7 @@ class MotorcycleController extends Controller
         $query = Motorcycle::with(['brand', 'images', 'seller.user:id,name']);
 
         $query->when($request->search, function ($q, $search) {
-            $q->where('model', 'like', '%{$search}%');
+            $q->where('model', 'like', "%{$search}%");
         });
         $query->when($request->brand_id, function ($q, $brand_id) {
             $q->where('brand_id', $brand_id);

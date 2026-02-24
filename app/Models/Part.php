@@ -14,11 +14,19 @@ class Part extends Model
         'category_id',
         'brand_id',
         'part_name',
+        'part_number',
+        'type',
         'condition',
-        'description',
         'price',
+        'is_negotiable',
         'stock_quantity',
-        'compatibility',
+        'oem_compatibility',
+        'is_universal',
+        'dimensions',
+        'is_open_for_swap',
+        'swap_preferences',
+        'description',
+        'location',
     ];
 
     public function seller()
@@ -32,5 +40,8 @@ class Part extends Model
     }
     public function brand(){
         return $this->belongsTo(Brand::class);
+    }
+    public function images(){
+        return $this->morphMany(Image::class, 'imageable');
     }
 }

@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use Exception;
 use Illuminate\Http\Request;
 use App\Models\Part;
 use App\Models\Seller;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class PartController extends Controller
 {
@@ -15,34 +18,32 @@ class PartController extends Controller
     {
 
         $query = Part::with(['seller', 'category', 'brand']);
-        if ($request->has('search')) {
-            $query->where('part_name', 'like', '%' . $request->search . '%');
-        }
-        if ($request->has('brand_id')) {
-            $query->where('brand_id', $request->brand_id);
-        }
-        if ($request->has('category_id')) {
-            $query->where('category_id', $request->category_id);
-        }
-        if ($request->has('part_name')) {
-            $query->where('part_name', $request->part_name);
-        }
-        if ($request->has('condition')) {
-            $query->where('condition', $request->condition);
-        }
-        if ($request->has('compatibility')) {
-            $query->where('compatibility', $request->compatibility);
-        }
-        if ($request->has('min_price')) {
-            $query->where('price', '>=', $request->min_price);
-        }
-        if ($request->has('max_price')) {
-            $query->where('price', '<=', $request->max_price);
-        }
-        if ($request->has('price')) {
-            $query->where('price', $request->price);
-        }
-        $parts = $query->latest()->paginate(10);
+
+        $query->when($request->search, function ($q, $search) {
+            $q->where('part_name', 'like', "%{$search}%");
+        });
+        $query->when($request->brand_id, function ($q, $brand_id) {
+            $q->where('brand_id', $brand_id);
+        });
+        $query->when($request->category_id, function ($q, $category) {
+            $q->where('category_id', $category);
+        });
+        $query->when($request->condition, function ($q, $cond) {
+            $q->where('condition', $cond);
+        });
+        $query->when($request->oem_compatibility, function ($q, $oem) {
+            $q->where(function ($subQuery) use ($oem) {
+                $subQuery->where('oem_compatibility', 'like', "%{$oem}%")
+                    ->orWhere('is_universal', true);
+            });
+        });
+        $query->when($request->min_price, function ($q, $min) {
+            $q->where('price', '>=', $min);
+        });
+        $query->when($request->max_price, function ($q, $max) {
+            $q->where('price', '<=', $max);
+        });
+        $parts = $query->latest()->paginate(12);
 
         return response()->json($parts);
 
@@ -61,24 +62,53 @@ class PartController extends Controller
         }
 
         $fields = $request->validate([
-            // 'seller_id' => 'required|exists:sellers,id',
             'category_id' => 'required|exists:categories,id',
             'brand_id' => 'required|exists:brands,id',
             'part_name' => 'required|string|max:255',
+            'part_number' => 'nullable|string',
+            'type' => 'required|in:original,replacement,aftermarket',
             'condition' => 'required|in:new,used',
-            'description' => 'required|string',
             'price' => 'required|numeric|min:0',
-            'stock_quantity' => 'required|integer|min:0',
-            'compatibility' => 'required|string',
-
-
+            'is_negotiable' => 'required|boolean',
+            'stock_quantity' => 'required|integer|min:1',
+            'oem_compatibility' => 'nullable|string',
+            'is_universal' => 'required|boolean',
+            'dimensions' => 'nullable|string',
+            'is_open_for_swap' => 'required|boolean',
+            'swap_preferences' => 'nullable|required_if:is_open_for_swap,true,1|string',
+            'description' => 'nullable|string',
+            'location' => 'nullable|string',
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
         ]);
 
         $fields['seller_id'] = $seller->id;
 
-        $part = Part::create($fields);
+        DB::beginTransaction();
 
-        return response()->json(['message' => 'Parts Saved', 'data' => $part], 201);
+        try {
+            $part = Part::create($fields);
+
+            if ($request->hasFile('images')) {
+                foreach ($request->file('images') as $index => $imageFile) {
+                    $path = $imageFile->store('images/parts', 'public');
+                    $part->images()->create([
+                        'path' => $path,
+                        'is_primary' => $index === 0,
+                    ]);
+                }
+            }
+            DB::commit();
+
+            return response()->json(['message' => 'Parts Saved', 'data' => $part->load('images', 'brand', 'category', 'seller')], 201);
+        } catch (Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Error Listing Parts',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+
     }
 
     /**

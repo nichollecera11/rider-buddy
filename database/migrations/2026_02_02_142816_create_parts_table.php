@@ -12,24 +12,28 @@ return new class extends Migration {
     {
         Schema::create('parts', function (Blueprint $table) {
             $table->id();
-            // Relasyon: Kinsa ang namaligya? (Individual o Shop)
             $table->foreignId('seller_id')->constrained()->onDelete('cascade');
-
-            // Relasyon: Unsa ni nga klase nga part? (Engine, Body, etc.)
             $table->foreignId('category_id')->constrained();
-
+            $table->foreignId('brand_id')->constrained();
             $table->string('part_name');
-            $table->foreignId('brand_id')->constrained(); // e.g., TDR, RCB, o "No Brand"
-
-            // KANI ANG IMONG GUSTO:
+            $table->string('part_number')->nullable(); // Pain Point #1: Para sa saktong fitment
+            // Genuine (OEM) vs Replacement
+            $table->enum('type', ['original', 'replacement', 'aftermarket'])->default('aftermarket');
             $table->enum('condition', ['new', 'used'])->default('new');
-
-            $table->text('description')->nullable();
             $table->decimal('price', 10, 2);
+            $table->boolean('is_negotiable')->default(true)->after('price');
             $table->integer('stock_quantity')->default(1);
+            // --OEM -- //
+            $table->text('oem_compatibility')->nullable(); // List of specific bikes
+            $table->boolean('is_universal')->default(false); // Toggle for universal parts
+            $table->string('dimensions')->nullable(); // Exact sizes (e.g., 14mm, 17 inches)
+            // --- KANI IMONG GUSTO (SWAP LOGIC) ---
+            $table->boolean('is_open_for_swap')->default(false);
+            $table->text('swap_preferences')->nullable(); // e.g., "Swap to Stock + Cash"
+            $table->text('description')->nullable();
+            // Para sa Location (usahay lahi ang location sa shop kaysa seller)
+            $table->string('location')->nullable();
 
-            // Para mahibal-an kung unsa nga motor compatible kini nga part
-            $table->string('compatibility')->nullable(); // e.g., "Mio Sporty, Mio Soul"
             $table->timestamps();
         });
     }
