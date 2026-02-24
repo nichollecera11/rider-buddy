@@ -8,6 +8,7 @@ use App\Models\Part;
 use App\Models\Seller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rules\ImageFile;
 
 class PartController extends Controller
 {
@@ -129,15 +130,12 @@ class PartController extends Controller
      */
     public function update(Request $request, string $id)
     {
-
         $part = Part::find($id);
 
         if (!$part) {
             return response()->json(['message' => 'Parts not found'], 404);
         }
 
-        // 2. SECURITY CHECK: Kinahanglan ang Seller sa part mao ang tag-iya sa shop
-        // Kay ang User_id naa man sa Seller profile, kailangan nato i-check ang relation
         $seller = Seller::where('user_id', auth()->id())->first();
 
         if (!$seller || $part->seller_id !== $seller->id) {
@@ -148,16 +146,71 @@ class PartController extends Controller
             'category_id' => 'sometimes|required|exists:categories,id',
             'brand_id' => 'sometimes|required|exists:brands,id',
             'part_name' => 'sometimes|required|string|max:255',
+            'part_number' => 'nullable|string',
+            'type' => 'sometimes|required|in:original,replacement,aftermarket',
             'condition' => 'sometimes|required|in:new,used',
-            'description' => 'sometimes|required|string',
             'price' => 'sometimes|required|numeric|min:0',
+            'is_negotiable' => 'sometimes|required|boolean',
             'stock_quantity' => 'sometimes|required|integer|min:0',
-            'compatibility' => 'sometimes|required|string',
+            'oem_compatibility' => 'nullable|string',
+            'is_universal' => 'sometimes|required|boolean',
+            'dimensions' => 'nullable|string',
+            'is_open_for_swap' => 'sometimes|required|boolean',
+            'swap_preferences' => 'nullable|required_if:is_open_for_swap,true,1|string',
+            'description' => 'nullable|string',
+            'location' => 'nullable|string',
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
+            'remove_images' => 'nullable|array',
+            'primary_image_id' => 'nullable|integer'
         ]);
 
-        $part->update($fields);
-        return response()->json(['message' => 'Parts Updated Successfully', 'data' => $part]);
+        DB::beginTransaction();
+        try {
+            // Update Text Fields
+            $part->update($fields);
+
+            // 1. Delete Selected Images
+            if ($request->has('remove_images')) {
+                $imagesToDelete = $part->images()->whereIn('id', $request->remove_images)->get();
+                foreach ($imagesToDelete as $img) {
+                    Storage::disk('public')->delete($img->path);
+                    $img->delete();
+                }
+            }
+
+            // 2. Upload New Images
+            if ($request->hasFile('images')) {
+                foreach ($request->file('images') as $imageFile) { // Gitangtang ang ";" diri
+                    $path = $imageFile->store('images/parts', 'public');
+                    $part->images()->create([
+                        'path' => $path,
+                        'is_primary' => false,
+                    ]);
+                }
+            }
+
+            // 3. Set Primary Image
+            if ($request->has('primary_image_id')) {
+                $part->images()->update(['is_primary' => false]); // Correct column name
+                $part->images()->where('id', $request->primary_image_id)->update(['is_primary' => true]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Parts Updated Successfully',
+                'data' => $part->load('images', 'brand', 'category')
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Error Updating Parts',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
+
 
     /**
      * Remove the specified resource from storage.
