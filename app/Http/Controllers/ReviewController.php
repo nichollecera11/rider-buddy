@@ -1,0 +1,172 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Exception;
+use Illuminate\Http\Request;
+use App\Models\Review;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+
+class ReviewController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(Request $request)
+    {
+        $query = Review::with(['user:id,name', 'reviewable',]);
+        $query->when($request->type, function ($q, $type) {
+            $q->where('reviewable_type', $type);
+        });
+        $query->when($request->reviewable_id, function ($q, $id) {
+            $q->where('reviewable_id', $id);
+        });
+        $reviews = $query->paginate(12);
+        return response()->json($reviews);
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(Request $request)
+    {
+        $fields = $request->validate([
+            'reviewable_id' => 'required|integer',
+            'reviewable_type' => 'required|string|in:App\Models\Mechanic,App\Models\Seller',
+            'rating' => 'required|integer|min:1|max:5',
+            'headline' => 'nullable|string|max:255',
+            'comment' => 'nullable|string',
+            'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:2048',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $fields['user_id'] = auth()->id();
+
+            $review = Review::create($fields);
+            if ($request->file('images')) {
+                foreach ($request->file('images') as $image) {
+                    $path = $image->store('images/reviews', 'public');
+                    $review->images()->create([
+                        'path' => $path,
+                        'is_primary' => false
+                    ]);
+                }
+            }
+
+            DB::commit();
+            return response()->json(['message' => 'Review Posted Successfully', 'data' => $review->load('user:id,name'), 201]);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Failed to post review',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(string $id)
+    {
+        $review = Review::with(['user:id,name', 'reviewable']);
+        if (!$review) {
+            return response()->json(['message' => 'Review not Found'], 400);
+        }
+        return response()->json($review);
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, string $id)
+    {
+        $review = Review::find($id);
+
+        if (!$review) {
+            return response()->json(['message' => 'Review Not Found'], 404);
+        }
+        if ($review->user_id !== auth()->id()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $fields = $request->validate([
+            // 'sometimes' pasabot i-skip ang validation kon wala gi-pasa ang field
+            'rating' => 'sometimes|integer|min:1|max:5',
+            'headline' => 'sometimes|nullable|string|max:255',
+            'comment' => 'sometimes|nullable|string',
+
+            // Para sa images, mas maayo 'sometimes' gihapon
+            'images' => 'sometimes|nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:2048',
+
+            'remove_images' => 'sometimes|array',
+            'remove_images.*' => 'integer|exists:images,id',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $review->update($fields);
+            //delete ta sa photo sa review
+            if ($request->has('remove_images')) {
+                $imagesToDelete = $review->images()->whereIn('id', $request->remove_images)->get();
+                foreach ($imagesToDelete as $img) {
+                    Storage::disk('public')->delete($img->path);
+                    $img->delete();
+                }
+            }
+            if ($request->hasFile('images')) {
+                foreach ($request->file('images') as $imageFile) {
+                    $path = $imageFile->store('images/reviews', 'public');
+                    $review->images()->create([
+                        'path' => $path,
+                        'is_primary' => false,
+                    ]);
+                }
+            }
+
+            DB::commit();
+            return response()->json(['message' => 'Review Posted Successfully', 'data' => $review]);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Review Update Failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(string $id)
+    {
+        $review = Review::with('images')->find($id);
+        if(!$review){
+            return response()->json(['message' => 'Review Not Found'], 404);
+        }
+        if($review->user_id !== auth()->id()){
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+        DB::beginTransaction();
+
+        try{
+        $images = $review->images;
+
+        foreach($review->images as $image){
+            if(Storage::disk('public')->exists($image->path)){
+                Storage::disk('public')->delete($image->path);
+            }
+        }
+        $review->images()->delete();
+        $review->delete();
+        DB::commit();
+        return response()->json(['message' => 'Review and Review Images Deleted'], 200);
+        }catch (Exception $e){
+            DB::rollBack();
+            return response()->json(['message' => 'Delete Review Failed', 'error' => $e->getMessage()]);
+        }
+    }
+}
