@@ -180,7 +180,7 @@ class PartController extends Controller
 
             // 2. Upload New Images
             if ($request->hasFile('images')) {
-                foreach ($request->file('images') as $imageFile) { // Gitangtang ang ";" diri
+                foreach ($request->file('images') as $imageFile) {
                     $path = $imageFile->store('images/parts', 'public');
                     $part->images()->create([
                         'path' => $path,
@@ -191,7 +191,7 @@ class PartController extends Controller
 
             // 3. Set Primary Image
             if ($request->has('primary_image_id')) {
-                $part->images()->update(['is_primary' => false]); // Correct column name
+                $part->images()->update(['is_primary' => false]);
                 $part->images()->where('id', $request->primary_image_id)->update(['is_primary' => true]);
             }
 
@@ -230,8 +230,23 @@ class PartController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $part->delete();
+        DB::beginTransaction();
 
-        return response()->json(['message' => ' Parts Deleted Successfully', 'data' => $part], 200);
+        try {
+
+            foreach ($part->images as $image) {
+                if (Storage::disk('public')->exists($image->path)) {
+                    Storage::disk('public')->delete($image->path);
+                }
+            }
+
+            $part->images()->delete();
+            $part->delete();
+            DB::commit();
+            return response()->json(['message' => ' Part and associated images deleted successfully', 'data' => $part , 'id'=> $id], 200);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => ' Deleting Parts Failed', 'error' => $e->getMessage()], 500);
+        }
     }
 }
