@@ -21,7 +21,7 @@ return new class extends Migration {
             $table->enum('type', ['original', 'replacement', 'aftermarket'])->default('aftermarket');
             $table->enum('condition', ['new', 'used'])->default('new');
             $table->decimal('price', 10, 2);
-            $table->boolean('is_negotiable')->default(true)->after('price');
+            $table->boolean('is_negotiable')->default(true);
             $table->integer('stock_quantity')->default(1);
             // --OEM -- //
             $table->text('oem_compatibility')->nullable(); // List of specific bikes
@@ -33,7 +33,6 @@ return new class extends Migration {
             $table->text('description')->nullable();
             // Para sa Location (usahay lahi ang location sa shop kaysa seller)
             $table->string('location')->nullable();
-
             $table->timestamps();
         });
     }

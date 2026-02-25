@@ -166,19 +166,23 @@ class PartController extends Controller
 
         DB::beginTransaction();
         try {
-            // Update Text Fields
-            $part->update($fields);
+            // 1. FILTER DATA: Kuhaa lang ang columns nga naa gyud sa 'parts' table
+            // Gigamit nato ang array_diff_key para sigurado nga ang text fields ra ang ma-update
+            $dbFields = collect($fields)->except(['remove_images', 'primary_image_id', 'images'])->toArray();
+            $part->update($dbFields);
 
-            // 1. Delete Selected Images
+            // Delete ang mga gi select na pics
             if ($request->has('remove_images')) {
                 $imagesToDelete = $part->images()->whereIn('id', $request->remove_images)->get();
                 foreach ($imagesToDelete as $img) {
-                    Storage::disk('public')->delete($img->path);
+                    if (Storage::disk('public')->exists($img->path)) {
+                        Storage::disk('public')->delete($img->path);
+                    }
                     $img->delete();
                 }
             }
 
-            // 2. Upload New Images
+            // Upload ug Bag ong pic
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $imageFile) {
                     $path = $imageFile->store('images/parts', 'public');
@@ -189,7 +193,8 @@ class PartController extends Controller
                 }
             }
 
-            // 3. Set Primary Image
+            // 4. SET PRIMARY IMAGE
+            // I-update lang kon ang ID nga gipasa kay existing pa (wala na-delete)
             if ($request->has('primary_image_id')) {
                 $part->images()->update(['is_primary' => false]);
                 $part->images()->where('id', $request->primary_image_id)->update(['is_primary' => true]);
@@ -243,7 +248,7 @@ class PartController extends Controller
             $part->images()->delete();
             $part->delete();
             DB::commit();
-            return response()->json(['message' => ' Part and associated images deleted successfully', 'data' => $part , 'id'=> $id], 200);
+            return response()->json(['message' => ' Part and associated images deleted successfully', 'data' => $part, 'id' => $id], 200);
         } catch (Exception $e) {
             DB::rollBack();
             return response()->json(['message' => ' Deleting Parts Failed', 'error' => $e->getMessage()], 500);

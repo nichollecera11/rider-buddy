@@ -45,8 +45,11 @@ class ReviewController extends Controller
         try {
             $fields['user_id'] = auth()->id();
 
-            $review = Review::create($fields);
-            if ($request->file('images')) {
+            // I-exclude ang images gikan sa main review creation
+            $reviewData = collect($fields)->except(['images'])->toArray();
+            $review = Review::create($reviewData);
+
+            if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $image) {
                     $path = $image->store('images/reviews', 'public');
                     $review->images()->create([
@@ -57,8 +60,14 @@ class ReviewController extends Controller
             }
 
             DB::commit();
-            return response()->json(['message' => 'Review Posted Successfully', 'data' => $review->load('user:id,name'), 201]);
+            // Naay typo sa imong original response (status code was inside the array)
+            return response()->json([
+                'message' => 'Review Posted Successfully',
+                'data' => $review->load('user:id,name', 'images')
+            ], 201);
+
         } catch (Exception $e) {
+            DB::rollBack(); // Importante!
             return response()->json([
                 'message' => 'Failed to post review',
                 'error' => $e->getMessage()
@@ -66,21 +75,17 @@ class ReviewController extends Controller
         }
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(string $id)
     {
-        $review = Review::with(['user:id,name', 'reviewable']);
+        // Gidugangan og find($id)
+        $review = Review::with(['user:id,name', 'reviewable', 'images'])->find($id);
+
         if (!$review) {
-            return response()->json(['message' => 'Review not Found'], 400);
+            return response()->json(['message' => 'Review not Found'], 404); // Mas maayo 404
         }
         return response()->json($review);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, string $id)
     {
         $review = Review::find($id);
@@ -88,35 +93,37 @@ class ReviewController extends Controller
         if (!$review) {
             return response()->json(['message' => 'Review Not Found'], 404);
         }
+
         if ($review->user_id !== auth()->id()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         $fields = $request->validate([
-            // 'sometimes' pasabot i-skip ang validation kon wala gi-pasa ang field
             'rating' => 'sometimes|integer|min:1|max:5',
             'headline' => 'sometimes|nullable|string|max:255',
             'comment' => 'sometimes|nullable|string',
-
-            // Para sa images, mas maayo 'sometimes' gihapon
             'images' => 'sometimes|nullable|array',
             'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:2048',
-
             'remove_images' => 'sometimes|array',
             'remove_images.*' => 'integer|exists:images,id',
         ]);
 
         DB::beginTransaction();
         try {
-            $review->update($fields);
-            //delete ta sa photo sa review
+            // FIX: I-filter ang fields para dili mangita og 'remove_images' sa DB
+            $updateData = collect($fields)->except(['images', 'remove_images'])->toArray();
+            $review->update($updateData);
+
             if ($request->has('remove_images')) {
                 $imagesToDelete = $review->images()->whereIn('id', $request->remove_images)->get();
                 foreach ($imagesToDelete as $img) {
-                    Storage::disk('public')->delete($img->path);
+                    if (Storage::disk('public')->exists($img->path)) {
+                        Storage::disk('public')->delete($img->path);
+                    }
                     $img->delete();
                 }
             }
+
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $imageFile) {
                     $path = $imageFile->store('images/reviews', 'public');
@@ -128,7 +135,8 @@ class ReviewController extends Controller
             }
 
             DB::commit();
-            return response()->json(['message' => 'Review Posted Successfully', 'data' => $review]);
+            return response()->json(['message' => 'Review Updated Successfully', 'data' => $review->load('images')]);
+
         } catch (Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -144,27 +152,27 @@ class ReviewController extends Controller
     public function destroy(string $id)
     {
         $review = Review::with('images')->find($id);
-        if(!$review){
+        if (!$review) {
             return response()->json(['message' => 'Review Not Found'], 404);
         }
-        if($review->user_id !== auth()->id()){
+        if ($review->user_id !== auth()->id()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         DB::beginTransaction();
 
-        try{
-        $images = $review->images;
+        try {
+            $images = $review->images;
 
-        foreach($review->images as $image){
-            if(Storage::disk('public')->exists($image->path)){
-                Storage::disk('public')->delete($image->path);
+            foreach ($review->images as $image) {
+                if (Storage::disk('public')->exists($image->path)) {
+                    Storage::disk('public')->delete($image->path);
+                }
             }
-        }
-        $review->images()->delete();
-        $review->delete();
-        DB::commit();
-        return response()->json(['message' => 'Review and Review Images Deleted'], 200);
-        }catch (Exception $e){
+            $review->images()->delete();
+            $review->delete();
+            DB::commit();
+            return response()->json(['message' => 'Review and Review Images Deleted'], 200);
+        } catch (Exception $e) {
             DB::rollBack();
             return response()->json(['message' => 'Delete Review Failed', 'error' => $e->getMessage()]);
         }

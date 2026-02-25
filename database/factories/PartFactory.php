@@ -55,7 +55,6 @@ class PartFactory extends Factory
             ]) : null,
             'description' => $this->faker->paragraph(),
             'location' => $this->faker->city(),
-            'timestamps' => now(),
         ];
     }
 }
