@@ -195,4 +195,15 @@ class SellerController extends Controller
             return response()->json(['message' => 'Delete Failed', 'error' => $e->getMessage()], 500);
         }
     }
+    public function verify(Seller $seller)
+    {
+        $seller->is_verified = true;
+        $seller->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => "Seller {$seller->name} is now verified",
+            'data' => $seller
+        ]);
+    }
 }

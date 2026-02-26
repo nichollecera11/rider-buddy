@@ -42,12 +42,8 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 });
 
-// routes/api.php
 
-// routes/api.php
-
-// routes/api.php
-
+//SUPER DUPER ADMIN
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
 
     // 1. Dashboard Stats (Kani ang una para dili ma-intercept sa resource)
@@ -57,6 +53,9 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     // Direkta na ni tanan: index, show, store, update, destroy para sa Admin
     Route::apiResource('reviews', ReviewController::class);
 
+    // Verification Routes
+    Route::patch('/mechanics/{mechanic}/verify', [MechanicController::class, 'verify']);
+    Route::patch('/sellers/{seller}/verify', [SellerController::class, 'verify']);
     // 3. User Management (Puhon kon ready na ka)
     // Route::apiResource('users', UserController::class);
 

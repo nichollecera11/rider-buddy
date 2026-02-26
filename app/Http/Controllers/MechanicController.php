@@ -235,4 +235,15 @@ class MechanicController extends Controller
             return response()->json(['message' => 'Delete Mechanic Profile Failed', 'error' => $e->getMessage()], 500);
         }
     }
+    public function verify(Mechanic $mechanic)
+    {
+        $mechanic->is_verified = true;
+        $mechanic->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => "Mechanic {$mechanic->name} is now verified",
+            'data' => $mechanic
+        ]);
+    }
 }
