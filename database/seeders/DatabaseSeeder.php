@@ -9,6 +9,7 @@ use App\Models\Part;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Review;
+use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -22,6 +23,15 @@ class DatabaseSeeder extends Seeder
         $this->call([
             CategorySeeder::class,
             BrandSeeder::class,
+        ]);
+
+        // database/seeders/DatabaseSeeder.php
+
+        User::factory()->create([
+            'name' => 'Super_Admin',
+            'email' => 'admin@riderbuddy.com', // Gamita ni para login
+            'password' => bcrypt('password'), // Ang password
+            'role' => 'admin',
         ]);
 
         // 1. Paghimo og Sellers
@@ -51,6 +61,25 @@ class DatabaseSeeder extends Seeder
             'offers_towing' => true,
         ]);
 
+        //Seller Review
+        $sellers = Seller::all();
+        foreach ($sellers as $seller) {
+            Review::factory(2)->create([
+                'reviewable_id' => $seller->id,
+                'reviewable_type' => Seller::class
+            ]);
+        }
+
+        //Mechanics Review
+        $mechanics = Mechanic::all();
+        foreach ($mechanics as $mechanic) {
+            Review::factory(2)->create([
+                'reviewable_id' => $mechanic->id,
+                'reviewable_type' => Mechanic::class
+            ]);
+
+        }
+
         // ... sa tumoy sa DatabaseSeeder.php
 
         Review::factory(100)->create()->each(function ($review) {
@@ -60,5 +89,7 @@ class DatabaseSeeder extends Seeder
                 ['path' => 'images/reviews/sample2.jpg', 'is_primary' => false],
             ]);
         });// Padaghanon nato gamay para bibo
+
+
     }
 }

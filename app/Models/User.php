@@ -47,6 +47,22 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+    // app/Models/User.php
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isSeller(): bool
+    {
+        return $this->role === 'seller';
+    }
+
+    public function isMechanic(): bool
+    {
+        return $this->role === 'mechanic';
+    }
     public function seller()
     {
         return $this->hasOne(Seller::class);
@@ -55,4 +71,5 @@ class User extends Authenticatable
     {
         return $this->hasOne(Mechanic::class);
     }
+
 }

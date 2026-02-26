@@ -16,7 +16,15 @@ return new class extends Migration {
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            $table->string('role')->default('rider'); // multi role (admin, rider, mechanic, user, seller etc for future proofing)
+
+            // GI-DUNGAG NAKO DIRI:
+            // Nag-add tag index() para paspas ang query inig dako na sa imong app.
+            // Ang comment para mahibalo ang ubang devs unsay choices sa role.
+            $table->string('role')
+                ->default('rider')
+                ->index()
+                ->comment('Options: admin, rider, mechanic, seller');
+
             $table->rememberToken();
             $table->timestamps();
         });

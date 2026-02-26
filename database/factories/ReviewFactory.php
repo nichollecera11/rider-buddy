@@ -38,8 +38,7 @@ class ReviewFactory extends Factory
             ]),
             'comment' => $this->faker->paragraph(),
             'reply_comment' => $this->faker->boolean(40) ? $this->faker->sentence() : null, // 40% chance naay reply
-            'created_at' => now(),
-            'updated_at' => now(),
+            
         ];
     }
 }

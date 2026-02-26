@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Models\Review;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use App\Models\Seller;
+use App\Models\Mechanic;
 
 class ReviewController extends Controller
 {
@@ -15,13 +17,20 @@ class ReviewController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Review::with(['user:id,name', 'reviewable',]);
+        // 1. I-load ang relasyon lakip ang images
+        $query = Review::with(['user:id,name', 'reviewable', 'images']);
+
+        // 2. Filter para sa Type (App\Models\Seller o App\Models\Mechanic)
         $query->when($request->type, function ($q, $type) {
             $q->where('reviewable_type', $type);
         });
+
+        // 3. Filter para sa ID (Kani ang naay sayop sa una)
         $query->when($request->reviewable_id, function ($q, $id) {
+            // Direkta lang i-filter ang ID, ayaw na i-assign ang Class name diri
             $q->where('reviewable_id', $id);
         });
+
         $reviews = $query->paginate(12);
         return response()->json($reviews);
     }
