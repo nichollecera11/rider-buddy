@@ -12,7 +12,8 @@ use App\Http\Controllers\PartController;
 use App\Http\Controllers\SellerController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Admin\AdminDashboardController;
-/*
+use App\Http\Controllers\Admin\UserController;
+/*  
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum'); */
@@ -56,8 +57,9 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     // Verification Routes
     Route::patch('/mechanics/{mechanic}/verify', [MechanicController::class, 'verify']);
     Route::patch('/sellers/{seller}/verify', [SellerController::class, 'verify']);
-    // 3. User Management (Puhon kon ready na ka)
-    // Route::apiResource('users', UserController::class);
+    
+    // User Management CRUD
+    Route::apiResource('users', UserController::class)->only(['index', 'show', 'update', 'destroy']);
 
     // 4. Verification Actions (Real-life Rider Buddy features)
     // Route::patch('/mechanics/{id}/verify', [MechanicController::class, 'verify']);
