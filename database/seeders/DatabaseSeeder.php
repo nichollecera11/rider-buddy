@@ -32,6 +32,8 @@ class DatabaseSeeder extends Seeder
             'email' => 'admin@riderbuddy.com', // Gamita ni para login
             'password' => bcrypt('password'), // Ang password
             'role' => 'admin',
+            'is_active' => true,
+            'is_banned' => false,
         ]);
 
         // 1. Paghimo og Sellers
