@@ -46,6 +46,13 @@ class AuthController extends Controller
 
 
         }
+        if ($user->is_banned) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Your account has been banned.',
+            //    'reason' => $user->ban_reason, // Ipakita ang rason kon ngano
+            ], 403); // 403 Forbidden
+        }
         $token = $user->createToken('riderbuddytoken')->plainTextToken;
 
         return response()->json(['user' => $user, 'token' => $token]);

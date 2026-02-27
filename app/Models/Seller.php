@@ -18,6 +18,7 @@ class Seller extends Model
         'business_permit_no',
         'has_delivery',
         'description',
+        'rating',
         'latitude',
         'longitude',
         'is_official_store',

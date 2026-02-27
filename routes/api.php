@@ -64,3 +64,6 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     // 4. Verification Actions (Real-life Rider Buddy features)
     // Route::patch('/mechanics/{id}/verify', [MechanicController::class, 'verify']);
 });
+
+
+

@@ -19,6 +19,8 @@ class MotorcycleController extends Controller
 
         $query = Motorcycle::with(['brand', 'images', 'seller.user:id,name']);
 
+        $query->where('is_sold', false);
+
         $query->when($request->search, function ($q, $search) {
             $q->where('model', 'like', "%{$search}%");
         });
@@ -46,7 +48,7 @@ class MotorcycleController extends Controller
         $query->when($request->is_open_for_swap, function ($q, $swap) {
             $q->where('is_open_for_swap', $swap);
         });
-
+        
 
         $motorcycles = $query->latest()->paginate(12);
         return response()->json($motorcycles);

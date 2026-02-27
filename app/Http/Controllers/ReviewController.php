@@ -67,6 +67,19 @@ class ReviewController extends Controller
                     ]);
                 }
             }
+            // i-compute nato ang bag-ong average rating sa Mechanic o Seller ug i-save ni nato diretso sa ilang table
+            $reviewable = $fields ['reviewable_type']::find($fields['reviewable_id']);
+            if ($reviewable){
+                // I-calculate ang bag-ong average rating
+                $averageRating = Review::where('reviewable_id', $fields['reviewable_id'])
+                ->where('reviewable_type', $fields['reviewable_id'])
+                ->avg('rating');
+                // i save ang average rating sa table sa Mechanic/Seller
+                // make sure na naay ratings sa table
+                $reviewable->update([
+                    'rating'=> round($averageRating, 1)
+                ]);
+            }
 
             DB::commit();
             // Naay typo sa imong original response (status code was inside the array)

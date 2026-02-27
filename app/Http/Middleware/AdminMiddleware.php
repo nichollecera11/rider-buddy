@@ -18,6 +18,11 @@ class AdminMiddleware
         if(auth()->check() && auth()->user()->isAdmin()){
             return $next($request);
         }
+        if($request->user()->is_banned){
+            return response()->json([
+                'message' => 'Banned users cannot perform admin actions'
+            ], 403);
+        }
         return response()->json([
             'message' => 'Access Denied. Admin Privileges Required'
         ], 403);

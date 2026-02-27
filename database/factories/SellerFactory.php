@@ -27,6 +27,7 @@ class SellerFactory extends Factory
             'business_permit_no' => 'BP-' . $this->faker->numberBetween(10000, 99999),
             'has_delivery' => $this->faker->boolean(),
             'description' =>$this->faker->sentence(),
+            'rating' => $this->faker->randomFloat(1, 1, 5),
             'latitude' => $this->faker->latitude(10.2, 10.4), // Random Cebu-ish lat
             'longitude' => $this->faker->longitude(123.8, 124.0),
             'is_official_store' => $this->faker->boolean(),     

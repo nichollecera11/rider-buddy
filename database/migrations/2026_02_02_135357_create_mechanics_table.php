@@ -23,6 +23,7 @@ return new class extends Migration {
             $table->integer('years_experience')->default(0);
             $table->boolean('is_verified')->default(false);
             $table->boolean('is_available')->default(true); // Status sa mekaniko karon
+            $table->decimal('rating', 3, 2)->default(0);
             // --- LOCATION DATA ---
             $table->decimal('latitude', 10, 8)->nullable();
             $table->decimal('longitude', 11, 8)->nullable();
