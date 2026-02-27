@@ -24,6 +24,11 @@ return new class extends Migration {
                 ->default('rider')
                 ->index()
                 ->comment('Options: admin, rider, mechanic, seller');
+            $table->boolean('is_active')->default(true)->index();
+            $table->boolean('is_banned')->default(false)->index();
+
+            // Pwede pud nimo pun-an og 'ban_reason' para transparent ta
+            $table->text('ban_reason')->nullable();
 
             $table->rememberToken();
             $table->timestamps();
