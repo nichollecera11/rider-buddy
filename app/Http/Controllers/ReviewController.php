@@ -67,21 +67,22 @@ class ReviewController extends Controller
                     ]);
                 }
             }
-            // i-compute nato ang bag-ong average rating sa Mechanic o Seller ug i-save ni nato diretso sa ilang table
-            $reviewable = $fields ['reviewable_type']::find($fields['reviewable_id']);
-            if ($reviewable){
-                // I-calculate ang bag-ong average rating
-                $averageRating = Review::where('reviewable_id', $fields['reviewable_id'])
-                ->where('reviewable_type', $fields['reviewable_id'])
-                ->avg('rating');
-                // i save ang average rating sa table sa Mechanic/Seller
-                // make sure na naay ratings sa table
-                $reviewable->update([
-                    'rating'=> round($averageRating, 1)
-                ]);
-            }
+            // // i-compute nato ang bag-ong average rating sa Mechanic o Seller ug i-save ni nato diretso sa ilang table
+            // $reviewable = $fields['reviewable_type']::find($fields['reviewable_id']);
+            // if ($reviewable) {
+            //     // I-calculate ang bag-ong average rating
+            //     $averageRating = Review::where('reviewable_id', $fields['reviewable_id'])
+            //         ->where('reviewable_type', $fields['reviewable_type'])
+            //         ->avg('rating');
+            //     // i save ang average rating sa table sa Mechanic/Seller
+            //     // make sure na naay ratings sa table
+            //     $reviewable->update([
+            //         'rating' => round($averageRating, 1)
+            //     ]);
+            // }
 
             DB::commit();
+            $this->recomputeRating($fields['reviewable_id'], $fields['reviewable_type']);
             // Naay typo sa imong original response (status code was inside the array)
             return response()->json([
                 'message' => 'Review Posted Successfully',
@@ -155,7 +156,7 @@ class ReviewController extends Controller
                     ]);
                 }
             }
-
+            $this->recomputeRating($review->reviewable_id, $review->reviewable_type);
             DB::commit();
             return response()->json(['message' => 'Review Updated Successfully', 'data' => $review->load('images')]);
 
@@ -191,12 +192,31 @@ class ReviewController extends Controller
                 }
             }
             $review->images()->delete();
+            $reviewableId = $review->reviewable_id;
+            $reviewableType = $review->reviewable_type;
             $review->delete();
+            $this->recomputeRating($reviewableId, $reviewableType);
             DB::commit();
             return response()->json(['message' => 'Review and Review Images Deleted'], 200);
         } catch (Exception $e) {
             DB::rollBack();
             return response()->json(['message' => 'Delete Review Failed', 'error' => $e->getMessage()]);
+        }
+    }
+    // 
+
+    private function recomputeRating($id, $type)
+    {
+        $reviewable = $type::find($id);
+
+        if ($reviewable) {
+            $averageRating = Review::where('reviewable_id', $id)
+                ->where('reviewable_type', $type)
+                ->avg('rating');
+
+            $reviewable->update([
+                'rating' => round($averageRating ?? 0, 1) // ?? 0 para kon ma-delete tanan reviews, mahimong 0 ang rating
+            ]);
         }
     }
 }

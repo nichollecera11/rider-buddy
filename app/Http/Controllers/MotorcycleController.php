@@ -199,8 +199,8 @@ class MotorcycleController extends Controller
             }
             //Primary Image Cover Photo
             if ($request->has('primary_image_id')) {
-                $motorcycle->images()->update(['is_primary' => true]);
-                $motorcycle->images()->where('id', $request->primary_image_id)->update(['is_primary', true]);
+                $motorcycle->images()->update(['is_primary' => false]);
+                $motorcycle->images()->where('id', $request->primary_image_id)->update(['is_primary' => true]);
             }
 
             DB::commit();
