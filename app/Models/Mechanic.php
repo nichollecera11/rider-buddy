@@ -20,6 +20,7 @@ class Mechanic extends Model
         'years_experience',
         'is_verified',
         'is_available',
+        'diagnostic_fee_base',
         'rating',
         'latitude',
         'longitude',
