@@ -84,6 +84,7 @@ class MechanicController extends Controller
             'emergency_contact' => 'nullable|string',
             'years_experience' => 'required|integer|min:0|max:50', // Gi-adjust nako gamay basig naay master mechanic           
             'is_available' => 'boolean',
+            'diagnostic_fee_base' => 'required|numeric|min:0',
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'service_fee_starts_at' => 'nullable|numeric|min:0',
@@ -105,6 +106,7 @@ class MechanicController extends Controller
                 'contact_number' => $fields['contact_number'],
                 'emergency_contact' => $fields['emergency_contact'] ?? null,
                 'years_experience' => $fields['years_experience'],
+                'diagnostic_fee_base' => $fields['diagnostic_fee_base'],
                 'latitude' => $fields['latitude'] ?? null,
                 'longitude' => $fields['longitude'] ?? null,
                 'service_fee_starts_at' => $fields['service_fee_starts_at'] ?? null,
@@ -183,6 +185,7 @@ class MechanicController extends Controller
             'years_experience' => 'sometimes|required|integer',
             'bio' => 'nullable|string',
             'specialization' => 'nullable|string',
+            'diagnostic_fee_base' => 'sometimes|required|numeric',
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
             'service_fee_starts_at' => 'nullable|numeric|',
