@@ -42,8 +42,3 @@ Instead of blind bookings, Rider Buddy implements a professional diagnostic flow
 
 ---
 
-## 🚀 Getting Started
-
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/nichollecera11/rider-buddy.git](https://github.com/nichollecera11/rider-buddy.git)
