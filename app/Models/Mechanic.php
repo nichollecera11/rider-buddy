@@ -30,6 +30,20 @@ class Mechanic extends Model
         'image',
     ];
 
+    protected $casts = [
+    'is_verified' => 'boolean',
+    'is_available' => 'boolean',
+    'is_24_7' => 'boolean',
+    'offers_towing' => 'boolean',
+    
+    // Mao ni ang importante para sa kwarta:
+    'diagnostic_fee_base' => 'decimal:2',
+    'service_fee_starts_at' => 'decimal:2',
+    
+    'latitude' => 'decimal:8',
+    'longitude' => 'decimal:8',
+];
+
     public function user()
     {
         return $this->belongsTo(User::class);

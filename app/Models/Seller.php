@@ -25,6 +25,15 @@ class Seller extends Model
         'is_verified',
         'is_24_7'
     ];
+    protected $casts = [
+        'is_verified' => 'boolean',
+        'is_24_7' => 'boolean',
+        'has_delivery' => 'boolean',
+        'is_official_store' => 'boolean',
+        'rating' => 'decimal:1',
+        'latitude' => 'decimal:8',
+        'longitude' => 'decimal:8',
+    ];
 
     public function motorcycles()
     {

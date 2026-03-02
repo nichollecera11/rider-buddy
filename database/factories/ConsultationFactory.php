@@ -30,7 +30,7 @@ class ConsultationFactory extends Factory
             'status' => $this->faker->randomElement(['pending', 'ongoing', 'inspected', 'closed']),
             
             // Sample JSON data para sa listahan sa pyesa
-            'suggested_parts' => json_encode([
+            'suggested_parts' => ([
                 ['part' => 'Brake Pad', 'price' => 450],
                 ['part' => 'Engine Oil', 'price' => 350]
             ]),
