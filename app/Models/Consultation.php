@@ -25,7 +25,8 @@ class Consultation extends Model
         'longitude',
         'location_name',
         'mechanic_notes',
-        'verification_otp'
+        'verification_otp',
+        'arrived_at'
     ];
 
     protected $casts = [
@@ -35,4 +36,9 @@ class Consultation extends Model
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
     ];
+
+    public function media()
+    {
+        return $this->hasMany(ConsultationMedia::class);
+    }
 }

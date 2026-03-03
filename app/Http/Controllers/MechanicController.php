@@ -7,6 +7,7 @@ use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class MechanicController extends Controller
 {
@@ -193,7 +194,8 @@ class MechanicController extends Controller
             'offers_towing' => 'sometimes|boolean',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
-
+        DB::beginTransaction();
+        try{
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('images/mechanics', 'public');
             $fields['image'] = $path;
@@ -201,7 +203,18 @@ class MechanicController extends Controller
 
         $mechanic->update($fields);
 
+        DB::commit();
+
         return response()->json(['message' => 'Mechanic Profile Updated Successfully', 'data' => $mechanic->load('image'), 201]);
+        } catch (Exception $e){
+            DB::rollBack();
+            Log::error("Mechanic Update Error: " . $e->getMessage());
+
+            return response()->json([
+                'message' => 'Failed to Update Mechanic Profile',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
     }
 
     /**

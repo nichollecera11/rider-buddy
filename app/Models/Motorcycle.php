@@ -29,6 +29,23 @@ class Motorcycle extends Model
         'is_sold',
     ];
 
+    protected $casts = [
+        // 1. Kwarta/Numbers
+        'price' => 'decimal:2',
+        'mileage' => 'integer',
+        'engine_capacity' => 'integer',
+
+        // 2. Booleans (True/False)
+        'is_negotiable' => 'boolean',
+        'is_registered' => 'boolean',
+        'is_open_for_swap' => 'boolean',
+        'is_sold' => 'boolean',
+
+        // 3. Year (Para sa Year model)
+        'year_model' => 'integer',
+    ];
+
+
     public function seller()
     {
         return $this->belongsTo(Seller::class);

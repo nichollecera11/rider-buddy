@@ -31,6 +31,21 @@ class Part extends Model
         'primary_image_id'
     ];
 
+    protected $casts = [
+        // 1. Kwarta/Numbers
+        'price' => 'decimal:2',
+        'stock_quantity' => 'integer',
+
+        // 2. Booleans (True/False)
+        'is_negotiable' => 'boolean',
+        'is_universal' => 'boolean',
+        'is_open_for_swap' => 'boolean',
+
+        // 3. JSON/Array (Optional Tip)
+        // Kon ang 'oem_compatibility' listahan sa mga motor, 
+        // puyde sab ni nimo himoon og array puhon.
+    ];
+
     public function seller()
     {
         return $this->belongsTo(Seller::class);
@@ -40,10 +55,12 @@ class Part extends Model
     {
         return $this->belongsTo(Category::class);
     }
-    public function brand(){
+    public function brand()
+    {
         return $this->belongsTo(Brand::class);
     }
-    public function images(){
+    public function images()
+    {
         return $this->morphMany(Image::class, 'imageable');
     }
 }

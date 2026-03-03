@@ -8,6 +8,7 @@ use App\Models\Motorcycle;
 use App\Models\Seller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class MotorcycleController extends Controller
 {
@@ -208,10 +209,10 @@ class MotorcycleController extends Controller
 
         } catch (Exception $e) {
             DB::rollBack();
-
+            Log::error("Motorcycle Update Error" . $e->getMessage());
             return response()->json([
                 'message' => 'Update Failed',
-                'error' => $e->getMessage()
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
     }

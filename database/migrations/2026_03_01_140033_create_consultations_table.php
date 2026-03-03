@@ -27,6 +27,7 @@ return new class extends Migration {
             $table->string('location_name')->nullable();
             $table->text('mechanic_notes')->nullable();
             $table->string('verification_otp', 6)->nullable();
+            $table->timestamp('arrived_at')->nullable()->after('verification_otp');
             $table->timestamps();
             $table->softDeletes();
         });

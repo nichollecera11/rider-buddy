@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Seller;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class SellerController extends Controller
 {
@@ -131,11 +132,12 @@ class SellerController extends Controller
         if (!$seller) {
             return response()->json(['message' => 'Seller not found'], 404);
         }
+
         if ($seller->user_id !== auth()->id()) {
             return response()->json(['message' => 'Unauthorized User Profile'], 403);
         }
 
-        $fields = request()->validate([
+        $fields = $request->validate([
             'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
             'shop_name' => 'nullable|string',
             'address' => 'sometimes|required|string',
@@ -148,17 +150,35 @@ class SellerController extends Controller
             'is_24_7' => 'sometimes|boolean'
         ]);
 
-        if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('images/sellers', 'public');
-            $fields['image'] = $path;
+        // Magsugod na ta sa proteksyon
+        DB::beginTransaction();
+
+        try {
+            if ($request->hasFile('image')) {
+                $path = $request->file('image')->store('images/sellers', 'public');
+                $fields['image'] = $path;
+            }
+
+            $seller->update($fields);
+
+            DB::commit(); 
+
+            return response()->json([
+                'message' => 'Seller Profile Updated Successfully',
+                'data' => $seller->load('image'), 201
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack(); // I-undo ang tanan kon naay error (e.g. disk full, DB timeout)
+
+            Log::error("Seller Update Error: " . $e->getMessage());
+
+            return response()->json([
+                'message' => 'Failed to Update Seller profile.',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+            ], 500);
         }
-
-        $seller->update($fields);
-        return response()->json(['message' => 'Seller Profile Updated Successfully', 'data' => $seller]);
-
-
     }
-
     /**
      * Remove the specified resource from storage.
      */
