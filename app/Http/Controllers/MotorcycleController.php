@@ -222,10 +222,8 @@ class MotorcycleController extends Controller
      */
     public function destroy(string $id)
     {
-        $motorcycle = Motorcycle::find($id);
-        if (!$motorcycle) {
-            return response()->json(['message' => 'Motorcycle not found'], 404);
-        }
+        $motorcycle = Motorcycle::findOrFail($id);
+        
         $seller = Seller::where('user_id', auth()->id())->first();
 
         if (!$seller || $motorcycle->seller_id !== $seller->id) {
@@ -247,7 +245,8 @@ class MotorcycleController extends Controller
             return response()->json(['message' => 'Motorcycle files Deleted Successfully'], 200);
         } catch (Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Delete Motorcycle Profile Failed', 'error' => $e->getMessage()], 500);
+            Log::error("Motorcycle Delete Error[{$id}]:" . $e->getMessage());
+            return response()->json(['message' => 'Failed to delete motorcycle listing', 'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'], 500);
         }
     }
 }

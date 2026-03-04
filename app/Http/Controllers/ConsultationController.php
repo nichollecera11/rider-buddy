@@ -15,9 +15,58 @@ class ConsultationController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $user = auth()->user();
+
+        try {
+            // 1. Base Query with Eager Loading (Walay Transaction kay Read-only ni)
+            $query = Consultation::with(['user', 'mechanic.user', 'motorcycle', 'media']);
+
+            // 2. Role Filtering
+            if ($user->mechanic) {
+                $query->where('mechanic_id', $user->mechanic->id);
+            } else {
+                $query->where('user_id', $user->id);
+            }
+
+            // 3. Proper Filters
+            // Filter by Status (e.g., ?status=pending)
+            $query->when($request->status, function ($q, $status) {
+                $q->where('status', $status);
+            })
+                // Filter by Type (e.g., ?type=sos)
+                ->when($request->type, function ($q, $type) {
+                    $q->where('consultation_type', $type);
+                })
+                // Keyword Search (e.g., ?search=NMAX)
+                ->when($request->search, function ($q, $search) {
+                    $q->where(function ($innerQuery) use ($search) {
+                        // Search sa Issue Description
+                        $innerQuery->where('issue_description', 'like', "%{$search}%")
+                            // Search sa Motorcycle Table
+                            ->orWhereHas('motorcycle', function ($motorcycleQuery) use ($search) {
+                            $motorcycleQuery->where('model', 'like', "%{$search}%")
+                                ->orWhere('plate_number', 'like', "%{$search}%");
+                        });
+                    });
+                });
+
+            $consultations = $query->latest()->get();
+
+            return response()->json([
+                'message' => 'Consultations Retrieved Successfully',
+                'count' => $consultations->count(),
+                'data' => $consultations,
+            ], 200);
+
+        } catch (Exception $e) {
+            Log::error('Consultation Index Error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to Retrieve Consultations',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
     }
 
     /**
@@ -105,7 +154,32 @@ class ConsultationController extends Controller
      */
     public function show(Consultation $consultation)
     {
-        //
+        $user = auth()->user();
+
+        try {
+            $isOwner = $consultation->user_id === $user->id;
+            $isAssignedMechanic = $user->mechanic && $consultation->mechanic_id === $user->mechanic->id;
+
+            if (!$isOwner && !$isAssignedMechanic) {
+                return response()->json([
+                    'message' => 'Unauthorized. You do not have access to this consultation'
+                ], 403);
+            }
+
+            //Eager Loading using of Model Binding Technique HAHAHA
+            $consultation->load(['user', 'mechanic.user', 'motorcycle', 'media']);
+
+            return response()->json([
+                'message' => 'Consultation Details Retrieved',
+                'data' => $consultation,
+            ], 200);
+        } catch (Exception $e) {
+            Log::error("Consultation Show Error [ID: {$consultation->id}]: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to retrieve Consultation',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : ' Server Error'
+            ], 500);
+        }
     }
 
     /**
@@ -162,7 +236,9 @@ class ConsultationController extends Controller
                 if ($fields['verification_otp_input'] !== $consultation->verification_otp) {
                     return response()->json(['message' => 'Invalid OTP Code. Verification failed.'], 422);
                 }
-                $consultation->arrived_at = now(); // Record arrival time
+                if (!$consultation->arrived_at) {
+                    $consultation->arrived_at = now(); // Record arrival time
+                }
             }
 
             // 2. The Actual Update
@@ -200,12 +276,39 @@ class ConsultationController extends Controller
     }
 
 
-
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Consultation $consultation)
+    public function destroy($id)
     {
-        //
+        $consultation = Consultation::findOrFail($id);
+        $userId = auth()->id();
+        if ($consultation->user_id !== $userId) {
+            return response()->json(['message' => 'Unauthorized. You do not own this request'], 403);
+        }
+        if ($consultation->status !== 'pending') {
+            return response()->json(['message' => 'Cannot cancel consultation. It is already ' . $consultation->status], 402);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($consultation->media as $media) {
+                if (Storage::disk('public')->exists($media->file_path)) {
+                    Storage::disk('public')->delete($media->file_path);
+                }
+            }
+            $consultation->media()->delete();
+            $consultation->delete();
+            DB::commit();
+            return response()->json(['message' => 'Consultation Successfully Deleted', 'data' => $consultation]);
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error("Consultation Delete Error[{$id}]: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to Cancel Consultation',
+                'error' => env('APP_DEBUG') ? $e->getmessage() : 'Server Error'
+            ], 500);
+        }
     }
 }
