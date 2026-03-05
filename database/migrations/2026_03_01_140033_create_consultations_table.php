@@ -12,6 +12,10 @@ return new class extends Migration {
     {
         Schema::create('consultations', function (Blueprint $table) {
             $table->id();
+            // Sa imong Consultations Migration
+            $table->foreignId('user_motorcycle_id')
+                ->constrained('user_motorcycles')
+                ->onDelete('restrict'); // Ayaw i-delete ang consultation record bisan i-delete ang motor
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('mechanic_id')->constrained()->onDelete('cascade');
             $table->foreignId('motorcycle_id')->constrained()->onDelete('cascade');

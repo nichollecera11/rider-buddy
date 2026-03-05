@@ -14,6 +14,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\ConsultationController;
+use App\Http\Controllers\UserMotorcycleController;
 
 /*  
 Route::get('/user', function (Request $request) {
@@ -42,6 +43,8 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::apiResource('sellers', SellerController::class)->except(['index', 'show']);
     Route::apiResource('reviews', ReviewController::class)->except(['index', 'show']);
     Route::apiResource('consultations', ConsultationController::class);
+    Route::apiResource('user-motorcycles', UserMotorcycleController::class);
+    
 
     
 

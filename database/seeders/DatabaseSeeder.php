@@ -11,6 +11,7 @@ use App\Models\Category;
 use App\Models\Review;
 use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\UserMotorcycle;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -35,6 +36,13 @@ class DatabaseSeeder extends Seeder
             'is_active' => true,
             'is_banned' => false,
         ]);
+
+        User::factory()->create()->each(function ($user) {
+            UserMotorcycle::factory(rand(1, 3))->create([
+                'user_id' => $user->id,
+                'brand_id' => Brand::inRandomOrder()->first()->id,
+            ]);
+        });
 
         // 1. Paghimo og Sellers
         Seller::factory(20)->create()->each(function ($seller) {

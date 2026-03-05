@@ -75,5 +75,8 @@ class User extends Authenticatable
     {
         return $this->hasOne(Mechanic::class);
     }
+    public function motorcycles(){
+        return $this->hasMany(UserMotorcycle::class);
+    }
 
 }
