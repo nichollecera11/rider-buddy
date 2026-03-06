@@ -44,7 +44,7 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::apiResource('reviews', ReviewController::class)->except(['index', 'show']);
     Route::apiResource('consultations', ConsultationController::class);
     Route::apiResource('user-motorcycles', UserMotorcycleController::class);
-    
+    Route::get('mechanic/consultations', [ConsultationController::class, 'mechanicRequests']);
 
     
 

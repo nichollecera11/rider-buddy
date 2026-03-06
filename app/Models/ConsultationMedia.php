@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class ConsultationMedia extends Model
 {
+
+    protected $table = 'consultations_media';
+
     protected $fillable = [
         'consultation_id',
         'file_path',

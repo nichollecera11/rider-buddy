@@ -104,7 +104,43 @@ class UserMotorcycleController extends Controller
      */
     public function update(Request $request, UserMotorcycle $userMotorcycle)
     {
-        //
+        if ($userMotorcycle->user_id !== auth()->id()) {
+            return response()->json([
+                'message' => 'Unauthorized'
+            ], 403);
+        }
+        $fields = $request->validate([
+            'brand_id' => 'required|exists:brands,id',
+            'model' => 'required|string|max:255',
+            'year_model' => 'nullable|digits:4',
+            // Gi-ignore nato ang ID ani nga motor para dili mo-trigger ang unique error
+            'plate_number' => 'required|string|unique:user_motorcycles,plate_number,' . $userMotorcycle->id,
+            'engine_number' => 'nullable|string|unique:user_motorcycles,engine_number,' . $userMotorcycle->id,
+            'chassis_number' => 'nullable|string|unique:user_motorcycles,chassis_number,' . $userMotorcycle->id,
+            'color' => 'nullable|string',
+            'is_main' => 'boolean'
+        ]);
+
+        DB::beginTransaction();
+        try {
+            if ($request->is_main) {
+                UserMotorcycle::where('user_id', auth()->id())
+                    ->where('id', '!=', $userMotorcycle->id)->update(['is_main' => false]);
+            }
+            $userMotorcycle->update($fields);
+            DB::commit();
+            return response()->json([
+                'message' => 'Motorcycle Updated Successfully',
+                'data' => $userMotorcycle->load('brand')
+            ], 200);
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error("UserMotorcycle Update Error: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Update Failed',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
     }
 
     /**
@@ -112,6 +148,23 @@ class UserMotorcycleController extends Controller
      */
     public function destroy(UserMotorcycle $userMotorcycle)
     {
-        //
+        try {
+            if ($userMotorcycle->user_id !== auth()->id()) {
+                return response()->json([
+                    'message' => 'Unauthorized'
+                ], 403);
+            }
+            $userMotorcycle->delete();
+            return response()->json([
+                'message' => 'Motorcycle Deleted Successfully',
+                'data' => $userMotorcycle->id
+            ], 200);
+        } catch (Exception $e) {
+            Log::error("Motorcycle Delete error: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Motorcycle Delete Failed',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
     }
 }

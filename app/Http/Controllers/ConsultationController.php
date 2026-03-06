@@ -84,7 +84,7 @@ class ConsultationController extends Controller
     {
         $fields = $request->validate([
             'mechanic_id' => 'required|exists:mechanics,id',
-            'motorcycle_id' => 'required|exists:motorcycles,id',
+            'user_motorcycle_id' => 'required|exists:user_motorcycles,id',
             'issue_description' => 'required|string|min:10',
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
@@ -105,7 +105,7 @@ class ConsultationController extends Controller
             $consultation = Consultation::create([
                 'user_id' => $userId,
                 'mechanic_id' => $fields['mechanic_id'],
-                'motorcycle_id' => $fields['motorcycle_id'],
+                'user_motorcycle_id' => $fields['user_motorcycle_id'],
                 'consultation_type' => $fields['consultation_type'],
                 'issue_description' => $fields['issue_description'],
                 'agreed_diagnostic_fee' => $diagnosticFee,
@@ -136,7 +136,7 @@ class ConsultationController extends Controller
 
             return response()->json([
                 'message' => 'Consultation Created Successfully',
-                'data' => $mechanic->load('media', 'mechanic', 'motorcycle')
+                'data' => $consultation->load('media', 'mechanic.user', 'motorcycle.brand', 'user')
             ], 201);
 
         } catch (Exception $e) {
@@ -242,6 +242,7 @@ class ConsultationController extends Controller
             }
 
             // 2. The Actual Update
+            unset($fields['verification_otp_input']);
             $consultation->update($fields);
 
             // 3. Media Upload (Kon naay dugang images/video ang mekaniko inig diagnosis)
@@ -308,6 +309,34 @@ class ConsultationController extends Controller
             return response()->json([
                 'message' => 'Failed to Cancel Consultation',
                 'error' => env('APP_DEBUG') ? $e->getmessage() : 'Server Error'
+            ], 500);
+        }
+    }
+    public function mechanicRequests()
+    {
+        try {
+            $mechanic = auth()->user()->mechanic;
+
+            if (!$mechanic) {
+                return response()->json([
+                    'message' => 'Unauthorized, You are not a Mechanic'
+                ], 403);
+            }
+            $consultations = Consultation::where('mechanic_id', $mechanic->id)
+                ->with(['user', 'motorcycle.brand', 'media'])
+                ->latest()->get();
+
+            return response()->json([
+                'message' => 'Mechanic Job Board Retrieved',
+                'count' => $consultations->count(),
+                'data' => $consultations
+            ]);
+        }catch(Exception $e){
+            Log::error(" Mechanic Index Error: " . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Server Error, Please come back later',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
     }

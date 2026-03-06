@@ -18,7 +18,6 @@ return new class extends Migration {
                 ->onDelete('restrict'); // Ayaw i-delete ang consultation record bisan i-delete ang motor
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('mechanic_id')->constrained()->onDelete('cascade');
-            $table->foreignId('motorcycle_id')->constrained()->onDelete('cascade');
             $table->string('consultation_type')->default('standard');
             $table->text('issue_description');
             $table->decimal('agreed_diagnostic_fee', 10, 2)->default(0);
