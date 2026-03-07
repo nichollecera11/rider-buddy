@@ -24,6 +24,9 @@ return new class extends Migration {
             $table->decimal('estimated_repair_costs', 10, 2)->nullable();
             $table->string('payment_status')->default('pending')->index();
             $table->string('status')->default('pending')->index();
+            $table->unsignedTinyInteger('rating')->nullable()->after('status');
+            $table->text('review_comment')->nullable()->after('rating');
+            $table->timestamp('rated_at')->nullable()->after('review_comment');
             $table->json('suggested_parts')->nullable();
             $table->decimal('latitude', 10, 8)->nullable();
             $table->decimal('longitude', 11, 8)->nullable();
@@ -42,5 +45,6 @@ return new class extends Migration {
     public function down(): void
     {
         Schema::dropIfExists('consultations');
+       
     }
 };

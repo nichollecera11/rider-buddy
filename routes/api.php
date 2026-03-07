@@ -15,6 +15,8 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\ConsultationController;
 use App\Http\Controllers\UserMotorcycleController;
+use App\Http\Controllers\ConsultationMediaController;
+
 
 /*  
 Route::get('/user', function (Request $request) {
@@ -45,8 +47,8 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::apiResource('consultations', ConsultationController::class);
     Route::apiResource('user-motorcycles', UserMotorcycleController::class);
     Route::get('mechanic/consultations', [ConsultationController::class, 'mechanicRequests']);
-
-    
+    // Para sa pag-delete o pag-manage og tagsa-tagsa nga file
+    Route::apiResource('consultation-media', ConsultationMediaController::class)->only(['destroy']);
 
     Route::post('/logout', [AuthController::class, 'logout']);
 });

@@ -70,14 +70,6 @@ class ConsultationController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
@@ -90,6 +82,10 @@ class ConsultationController extends Controller
             'longitude' => 'nullable|numeric',
             'location_name' => 'nullable|string',
             'consultation_type' => 'required|in:standard,sos',
+            'images' => 'sometimes|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120',
+            'videos' => 'sometimes|array',
+            'videos.*' => 'mimes:mp4,mov,avi|max:20480',
         ]);
         DB::beginTransaction();
 
@@ -141,7 +137,7 @@ class ConsultationController extends Controller
 
         } catch (Exception $e) {
             DB::rollBack();
-            Log::error("Create Consultation Error" . $e->getMessage());
+            Log::error("Create Consultation Error: " . $e->getMessage());
             return response()->json([
                 'message' => 'Error creating consultation',
                 'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
@@ -182,13 +178,6 @@ class ConsultationController extends Controller
         }
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Consultation $consultation)
-    {
-        //
-    }
 
     /**
      * Update the specified resource in storage.
@@ -226,6 +215,11 @@ class ConsultationController extends Controller
             'latitude' => 'sometimes|nullable|numeric',
             'longitude' => 'sometimes|nullable|numeric',
             'location_name' => 'sometimes|nullable|string',
+
+            'images' => 'sometimes|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120',
+            'videos' => 'sometimes|array',
+            'videos.*' => 'mimes:mp4,mov,avi|max:20480',
         ]);
 
         DB::beginTransaction();
@@ -234,7 +228,7 @@ class ConsultationController extends Controller
             // Kon i-set ang status to 'ongoing', dapat match ang OTP gikan ni Rider
             if (isset($fields['status']) && $fields['status'] === 'ongoing') {
 
-                if (isset($fields['verification_otp_input'])){
+                if (!isset($fields['verification_otp_input'])) {
                     return response()->json([
                         'message' => 'QR Scan required to start service'
                     ], 422);
@@ -243,7 +237,7 @@ class ConsultationController extends Controller
                     return response()->json(['message' => 'Invalid OTP Code. Verification failed.'], 422);
                 }
                 $otpAge = $consultation->updated_at->diffinMinutes(now());
-                if ($otpAge >2){
+                if ($otpAge > 2) {
                     return response()->json([
                         'message' => 'QR Code Expired, Rider needs to refresh the QR'
                     ], 422);
@@ -343,7 +337,7 @@ class ConsultationController extends Controller
                 'count' => $consultations->count(),
                 'data' => $consultations
             ]);
-        }catch(Exception $e){
+        } catch (Exception $e) {
             Log::error(" Mechanic Index Error: " . $e->getMessage());
             return response()->json([
                 'status' => 'error',
