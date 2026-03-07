@@ -233,8 +233,20 @@ class ConsultationController extends Controller
             // 🚀 TRUST LOGIC: OTP Verification
             // Kon i-set ang status to 'ongoing', dapat match ang OTP gikan ni Rider
             if (isset($fields['status']) && $fields['status'] === 'ongoing') {
+
+                if (isset($fields['verification_otp_input'])){
+                    return response()->json([
+                        'message' => 'QR Scan required to start service'
+                    ], 422);
+                }
                 if ($fields['verification_otp_input'] !== $consultation->verification_otp) {
                     return response()->json(['message' => 'Invalid OTP Code. Verification failed.'], 422);
+                }
+                $otpAge = $consultation->updated_at->diffinMinutes(now());
+                if ($otpAge >2){
+                    return response()->json([
+                        'message' => 'QR Code Expired, Rider needs to refresh the QR'
+                    ], 422);
                 }
                 if (!$consultation->arrived_at) {
                     $consultation->arrived_at = now(); // Record arrival time
