@@ -28,7 +28,10 @@ class ConsultationFactory extends Factory
             
             'payment_status' => $this->faker->randomElement(['pending', 'paid']),
             'status' => $this->faker->randomElement(['pending', 'ongoing', 'inspected', 'closed']),
-            
+            'rating' => fake()->numberBetween(1, 5),
+            'review_comment' => fake()->paragraph(),
+            'rated_at' => now(), 
+
             // Sample JSON data para sa listahan sa pyesa
             'suggested_parts' => ([
                 ['part' => 'Brake Pad', 'price' => 450],
@@ -42,6 +45,8 @@ class ConsultationFactory extends Factory
             
             'mechanic_notes' => $this->faker->optional()->paragraph(),
             'verification_otp' => str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT),
+
+
         ];
     }
 }

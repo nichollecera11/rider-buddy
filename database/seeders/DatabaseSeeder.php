@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Consultation;
 use App\Models\Mechanic;
 use App\Models\Motorcycle;
 use App\Models\Seller;
@@ -100,6 +101,17 @@ class DatabaseSeeder extends Seeder
             ]);
         });// Padaghanon nato gamay para bibo
 
+
+        Consultation::factory()->count(5)->create([
+            'status' => 'completed',
+            'payment_status' => 'paid'
+        ]);
+
+        Consultation::factory()->count(3)->create([
+            'status' => 'pending',
+            'rating' => null,
+            'review_comment' => null
+        ]);
 
     }
 }
