@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Consultation;
+use App\Models\MaintenanceLog;
 use App\Models\Mechanic;
 use App\Models\Motorcycle;
 use App\Models\Seller;
@@ -112,6 +113,8 @@ class DatabaseSeeder extends Seeder
             'rating' => null,
             'review_comment' => null
         ]);
+
+        MaintenanceLog::factory()->count(10)->create();
 
     }
 }

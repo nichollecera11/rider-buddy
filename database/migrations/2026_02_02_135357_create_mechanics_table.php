@@ -32,7 +32,6 @@ return new class extends Migration {
             // ---- VULCANIZING DATA ----
             $table->boolean('is_24_7')->default(false)->after('is_available');
             $table->boolean('offers_towing')->default(false)->after('is_24_7');
-            $table->string('image')->nullable(); // Pwede na ni nimo i-delete puhon kay polymorphic naman ta
             $table->timestamps();
         });
     }
