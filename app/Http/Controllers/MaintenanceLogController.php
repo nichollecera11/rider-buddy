@@ -22,11 +22,11 @@ class MaintenanceLogController extends Controller
         try {
             $query = MaintenanceLog::with(['motorcycle.brand', 'mechanic.user']);
 
-            if ($user->mechanic){
+            if ($user->mechanic) {
                 $query->where('mechanic_id', $user->mechanic->id);
-            }else {
-                $query->whereHas('motorcycle', function ($q)use ($user){
-                $q->where('user_id', $user->id);
+            } else {
+                $query->whereHas('motorcycle', function ($q) use ($user) {
+                    $q->where('user_id', $user->id);
                 });
             }
             $logs = $query->latest()->get();
@@ -37,7 +37,7 @@ class MaintenanceLogController extends Controller
                 'count' => $logs->count(),
                 'data' => $logs
             ], 200);
-        } catch (Exception $e){
+        } catch (Exception $e) {
             DB::rollBack();
             Log::error("Maintenance Log Retrieve Failed:" . $e->getMessage());
             return response()->json([
@@ -80,7 +80,7 @@ class MaintenanceLogController extends Controller
             ]);
         }
 
-        if ($consultation->status !== 'ongoing'){
+        if ($consultation->status !== 'ongoing') {
             return response()->json([
                 'message' => 'Service must be ongoing before you can proceed'
             ], 422);
@@ -149,8 +149,38 @@ class MaintenanceLogController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(MaintenanceLog $maintenanceLog)
+    public function destroy($id)
     {
-        //
+        $log = MaintenanceLog::find($id);
+
+        if (!$log) {
+            return response()->json([
+                'message' => 'Maintenance Log not Found'
+            ], 404);
+
+        }
+        if (auth()->user()->role !== 'admin') {
+            return response()->json([
+                'message' => 'Unauthorized, Only Administrator Can Delete Maintenance Logs'
+            ], 403);
+
+        }
+
+        DB::beginTransaction();
+        try {
+            $log->delete();
+            DB::commit();
+            return response()->json([
+                'message' => 'Service Record Sucessfully Deleted'
+            ], 200);
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error("Maintenance Log Delete Error: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Delete Failed',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
+
     }
 }
