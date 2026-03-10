@@ -11,16 +11,25 @@ class UserMotorcycle extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id',
-        'brand_id',
-        'model',
-        'year_model',
-        'plate_number',
-        'engine_number',
-        'chassis_number',
-        'color',
-        'is_main'
-    ];
+    'user_id',
+    'brand_id',
+    'model',
+    'year_model',
+    'engine_capacity',
+    'transmission',
+    'fuel_type',
+    'color',
+    'plate_number',
+    'engine_number',
+    'chassis_number',
+    'last_registration_date',
+    'insurance_expiry',
+    'current_odometer',
+    'is_main',
+    'is_active',
+    //verification for odometer and last registration
+    'verification_photo'
+];
 
     // Ang tag-iya sa motor
     public function user()

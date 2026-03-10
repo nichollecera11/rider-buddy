@@ -41,12 +41,27 @@ class UserMotorcycleController extends Controller
         $fields = $request->validate([
             'brand_id' => 'required|exists:brands,id',
             'model' => 'required|string|max:255',
-            'year_model' => 'nullable|digits:4',
+            'year_model' => 'nullable|string',
             'plate_number' => 'required|string|unique:user_motorcycles,plate_number',
+
+            // Legal & Technical (Nullable para dili kapoyan si Nichol)
             'engine_number' => 'nullable|string|unique:user_motorcycles,engine_number',
             'chassis_number' => 'nullable|string|unique:user_motorcycles,chassis_number',
+            'engine_capacity' => 'nullable|integer',
+
+            // 🚀 THE SYNC: Gamit tag underscore para match sa standard
+            'transmission' => 'nullable|in:manual,automatic,semi_automatic,none_electric',
+            'fuel_type' => 'nullable|in:gasoline,electric',
             'color' => 'nullable|string',
-            'is_main' => 'boolean'
+
+            // 🚀 THE MISSING BUTLER FIELDS:
+            'last_registration_date' => 'nullable|date',
+            'insurance_expiry' => 'nullable|date',
+
+            // Metrics & Status
+            'current_odometer' => 'nullable|integer',
+            'is_main' => 'boolean',
+            'is_active' => 'boolean'
         ]);
 
         DB::beginTransaction();
@@ -113,13 +128,23 @@ class UserMotorcycleController extends Controller
             'brand_id' => 'required|exists:brands,id',
             'model' => 'required|string|max:255',
             'year_model' => 'nullable|digits:4',
-            // Gi-ignore nato ang ID ani nga motor para dili mo-trigger ang unique error
             'plate_number' => 'required|string|unique:user_motorcycles,plate_number,' . $userMotorcycle->id,
             'engine_number' => 'nullable|string|unique:user_motorcycles,engine_number,' . $userMotorcycle->id,
             'chassis_number' => 'nullable|string|unique:user_motorcycles,chassis_number,' . $userMotorcycle->id,
+            'transmission' => 'nullable|in:manual,automatic,semi_automatic,none_electric',
+            'fuel_type' => 'nullable|in:gasoline,electric',
             'color' => 'nullable|string',
-            'is_main' => 'boolean'
+            'last_registration_date' => 'nullable|date',
+            'insurance_expiry' => 'nullable|date',
+            'current_odometer' => 'nullable|integer',
+            'is_main' => 'boolean',
+            'is_active' => 'boolean'
         ]);
+        if ($request->hasAny(['current_odometer', 'last_registration_date'])) {
+            $request->validate([
+                'verification_photo' => 'required|image|max:2048'
+            ]);
+        }
 
         DB::beginTransaction();
         try {
@@ -127,6 +152,15 @@ class UserMotorcycleController extends Controller
                 UserMotorcycle::where('user_id', auth()->id())
                     ->where('id', '!=', $userMotorcycle->id)->update(['is_main' => false]);
             }
+            if ($request->hasFile('verification_photo')) {
+                $path = $request->file('verification_photo')->store('images/usermotorcycles/verification_photo', 'public');
+
+                $userMotorcycle->images()->create([
+                    'path' => $path,
+                    'is_primary' => true,
+                ]);
+            }
+
             $userMotorcycle->update($fields);
             DB::commit();
             return response()->json([
