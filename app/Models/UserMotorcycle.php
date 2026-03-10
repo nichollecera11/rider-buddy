@@ -48,4 +48,7 @@ class UserMotorcycle extends Model
     {
         return $this->morphMany(Image::class, 'imageable');
     }
+    public function media(){
+        return $this->hasMany(UserMotorcycleMedia::class);
+    }
 }

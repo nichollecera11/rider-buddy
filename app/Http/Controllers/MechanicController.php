@@ -19,9 +19,9 @@ class MechanicController extends Controller
         $query = Mechanic::with(['user', 'images']);
 
         if ($request->lat && $request->lng) {
-            $query->withDistance($request->lat, $request->lng)->orderBy('distance', 'asc');
-        } else {
-            $query->latest();
+            $query->withDistance($request->lat, $request->lng)
+                ->having('distance', '<', 50) // 50km radius ra ang pakit-on
+                ->orderBy('distance', 'asc');
         }
 
         $query->when($request->search, function ($q, $search) {
@@ -75,8 +75,8 @@ class MechanicController extends Controller
      */
     public function store(Request $request)
     {
+
         $fields = $request->validate([
-            'name' => 'required|string',
             'shop_name' => 'nullable|string',
             'address' => 'required|string',
             'bio' => 'nullable|string',
@@ -99,7 +99,6 @@ class MechanicController extends Controller
         try {
             $mechanic = Mechanic::create([
                 'user_id' => $userId,
-                'name' => $fields['name'],
                 'shop_name' => $fields['shop_name'] ?? null,
                 'address' => $fields['address'],
                 'bio' => $fields['bio'] ?? null,
@@ -118,13 +117,13 @@ class MechanicController extends Controller
                 'is_available' => $request->has('is_available') ? $request->boolean('is_available') : true,
             ]);
 
-            // --- POLYMORPHIC IMAGE LOGIC ---
-            // I-awat nato sa imong Seller/Mechanic image format
+            // MediaMechanic image
             if ($request->hasFile('image')) {
-                $path = $request->file('image')->store('images/mechanics', 'public');
-                $mechanic->images()->create([
-                    'path' => $path,
-                    'is_primary' => true,
+                $path = $request->file('image')->store('mechanics/profiles', 'public');
+                $mechanic->media()->create([
+                    'file_path' => $path,
+                    'file_type' => 'image',
+                    'collection' => 'profile'
                 ]);
             }
 
@@ -158,7 +157,7 @@ class MechanicController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $mechanic = Mechanic::find($id);
+        $mechanic = Mechanic::findOrFail($id);
 
         /* DEBUG
         return response()->json([
@@ -166,9 +165,9 @@ class MechanicController extends Controller
         'current_user' => auth()->id()
         ]); */
 
-        if (!$mechanic) {
-            return response()->json(['message' => 'Mechanic not found'], 404);
-        }
+        // if (!$mechanic) {
+        //     return response()->json(['message' => 'Mechanic not found'], 404);
+        // }
 
         //Security Check for user update only
         if ($mechanic->user_id !== auth()->id()) {
@@ -178,7 +177,6 @@ class MechanicController extends Controller
         }
 
         $fields = request()->validate([
-            'name' => 'sometimes|required|string',
             'shop_name' => 'nullable|string',
             'address' => 'sometimes|required|string|',
             'contact_number' => 'sometimes|required|string',
@@ -195,18 +193,23 @@ class MechanicController extends Controller
             'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
         DB::beginTransaction();
-        try{
-        if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('images/mechanics', 'public');
-            $fields['image'] = $path;
-        }
+        try {
+            $dbFields = $request->except(['image']);
+            $mechanic->update($dbFields);
 
-        $mechanic->update($fields);
+            if ($request->hasFile('image')) {
+                $path = $request->file('image')->store('mechanics/profiles', 'public');
 
-        DB::commit();
+                $mechanic->media()->updateOrCreate(
+                    ['collection' => 'profile'],
+                    ['file_path' => $path, 'file_type' => 'image']
+                );
+            }
 
-        return response()->json(['message' => 'Mechanic Profile Updated Successfully', 'data' => $mechanic->load('image'), 201]);
-        } catch (Exception $e){
+            DB::commit();
+
+            return response()->json(['message' => 'Mechanic Profile Updated Successfully', 'data' => $mechanic->load('image'), 201]);
+        } catch (Exception $e) {
             DB::rollBack();
             Log::error("Mechanic Update Error: " . $e->getMessage());
 

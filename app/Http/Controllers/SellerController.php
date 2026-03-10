@@ -55,7 +55,7 @@ class SellerController extends Controller
     public function store(Request $request)
     {
         $fields = $request->validate([
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
+            'user_id' => auth()->id(),
             'shop_name' => 'nullable|string',
             'address' => 'required|string',
             'contact_number' => 'required|string|min:11|max:255',
@@ -84,10 +84,11 @@ class SellerController extends Controller
             ]);
 
             if ($request->hasFile('image')) {
-                $path = $request->file('image')->store('images/sellers', 'public');
-                $seller->images()->create([
-                    'path' => $path,
-                    'is_primary' => true,
+                $path = $request->file('image')->store('sellers/profiles', 'public');
+                $seller->media()->create([
+                    'file_path' => $path,
+                    'file_type' => 'image',
+                    'collection' => 'logo'
                 ]);
             }
 
@@ -127,11 +128,7 @@ class SellerController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $seller = Seller::find($id);
-
-        if (!$seller) {
-            return response()->json(['message' => 'Seller not found'], 404);
-        }
+        $seller = Seller::findOrFail($id);
 
         if ($seller->user_id !== auth()->id()) {
             return response()->json(['message' => 'Unauthorized User Profile'], 403);
@@ -154,18 +151,23 @@ class SellerController extends Controller
         DB::beginTransaction();
 
         try {
+            $dbFields = $request->except(['image']);
+            $seller->update($dbFields);
+
             if ($request->hasFile('image')) {
-                $path = $request->file('image')->store('images/sellers', 'public');
-                $fields['image'] = $path;
+                $path = $request->file('image')->store('sellers/profiles', 'public');
+                $seller->media()->updateOrCreate(
+                    ['collection' => 'logo'],
+                    ['file_path' => $path, 'file_type' => 'image']
+                );
             }
 
-            $seller->update($fields);
-
-            DB::commit(); 
+            DB::commit();
 
             return response()->json([
                 'message' => 'Seller Profile Updated Successfully',
-                'data' => $seller->load('image'), 201
+                'data' => $seller->load('image'),
+                201
             ]);
 
         } catch (Exception $e) {

@@ -71,7 +71,7 @@ class PartController extends Controller
             'condition' => 'required|in:new,used',
             'price' => 'required|numeric|min:0',
             'is_negotiable' => 'required|boolean',
-            'stock_quantity' => 'required|integer|min:1',
+            'stock_quantity' => 'required|integer|min:0',
             'oem_compatibility' => 'nullable|string',
             'is_universal' => 'required|boolean',
             'dimensions' => 'nullable|string',
@@ -223,7 +223,8 @@ class PartController extends Controller
     public function destroy(string $id)
     {
 
-        $part = Part::find($id);
+
+        $part = Part::with('images')->find($id);
 
         if (!$part) {
             return response()->json(['message' => "Parts not found"], 404);

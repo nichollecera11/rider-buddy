@@ -11,14 +11,12 @@ class Seller extends Model
 
     protected $fillable = [
         'user_id',
-        'image',
         'shop_name',
         'address',
         'contact_number',
         'business_permit_no',
         'has_delivery',
         'description',
-        'rating',
         'latitude',
         'longitude',
         'is_official_store',
@@ -30,9 +28,8 @@ class Seller extends Model
         'is_24_7' => 'boolean',
         'has_delivery' => 'boolean',
         'is_official_store' => 'boolean',
-        'rating' => 'decimal:1',
-        'latitude' => 'decimal:8',
-        'longitude' => 'decimal:8',
+        'latitude' => 'float',
+        'longitude' => 'float',
     ];
 
     public function motorcycles()
@@ -47,9 +44,13 @@ class Seller extends Model
     {
         return $this->hasMany(Part::class);
     }
-    public function images()
+    public function media()
     {
-        return $this->morphMany(Image::class, 'imageable');
+        return $this->hasMany(SellerMedia::class);
+    }
+    public function getAverageRatingAttribute()
+    {
+        return round($this->reviews()->avg('rating'), 1) ?: 0.0;
     }
     public function scopeWithDistance($query, $lat, $lng)
     {

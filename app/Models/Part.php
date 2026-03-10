@@ -27,8 +27,6 @@ class Part extends Model
         'swap_preferences',
         'description',
         'location',
-        'remove_images',
-        'primary_image_id'
     ];
 
     protected $casts = [

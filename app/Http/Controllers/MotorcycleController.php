@@ -142,11 +142,7 @@ class MotorcycleController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $motorcycle = Motorcycle::find($id);
-
-        if (!$motorcycle) {
-            return response()->json(['message' => 'Motorcycle not found'], 404);
-        }
+        $motorcycle = Motorcycle::findOrFail($id);
 
         $seller = Seller::where('user_id', auth()->id())->first();
 
