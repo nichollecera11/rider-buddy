@@ -16,7 +16,7 @@ class MechanicController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Mechanic::with(['user', 'images']);
+        $query = Mechanic::with(['user:id,name', 'media'])->withAvg('reviews', 'rating');
 
         if ($request->lat && $request->lng) {
             $query->withDistance($request->lat, $request->lng)
