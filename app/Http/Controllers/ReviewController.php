@@ -18,7 +18,7 @@ class ReviewController extends Controller
     public function index(Request $request)
     {
         // 1. I-load ang relasyon lakip ang images
-        $query = Review::with(['user:id,name', 'reviewable', 'images']);
+        $query = Review::with(['user:id,name', 'images']);
 
         // 2. Filter para sa Type (App\Models\Seller o App\Models\Mechanic)
         $query->when($request->type, function ($q, $type) {
@@ -67,6 +67,7 @@ class ReviewController extends Controller
                     ]);
                 }
             }
+
             // // i-compute nato ang bag-ong average rating sa Mechanic o Seller ug i-save ni nato diretso sa ilang table
             // $reviewable = $fields['reviewable_type']::find($fields['reviewable_id']);
             // if ($reviewable) {
@@ -81,8 +82,9 @@ class ReviewController extends Controller
             //     ]);
             // }
 
-            DB::commit();
             $this->recomputeRating($fields['reviewable_id'], $fields['reviewable_type']);
+            DB::commit();
+
             // Naay typo sa imong original response (status code was inside the array)
             return response()->json([
                 'message' => 'Review Posted Successfully',
@@ -207,6 +209,9 @@ class ReviewController extends Controller
 
     private function recomputeRating($id, $type)
     {
+        if (!class_exists($type))
+            return;
+
         $reviewable = $type::find($id);
 
         if ($reviewable) {
@@ -214,8 +219,8 @@ class ReviewController extends Controller
                 ->where('reviewable_type', $type)
                 ->avg('rating');
 
-            $reviewable->update([
-                'rating' => round($averageRating ?? 0, 1) // ?? 0 para kon ma-delete tanan reviews, mahimong 0 ang rating
+            $type::where('id', $id)->update([
+                'rating' => round($averageRating, 1)
             ]);
         }
     }
