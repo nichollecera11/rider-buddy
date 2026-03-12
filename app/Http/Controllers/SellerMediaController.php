@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Models\Seller;
 
 class SellerMediaController extends Controller
 {
@@ -30,9 +31,51 @@ class SellerMediaController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request, $id)
     {
-        //
+
+        $request->validate([
+            'seller_id' => 'required|exists:sellers,id',
+            'file' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+        ]);
+
+        $sellerMedia = Seller::findOrFail($id);
+        if ($sellerMedia->user_id !== auth()->id()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+        DB::beginTransaction();
+        try {
+            if ($request->hasFile('file')) {
+                $file = $request->file('file');
+                //Himoerns Unique Name
+                $filename = time() . '_' . $file->getClientOriginalName();
+                //salbar de public seller_media folder 
+                $path = $file->storeAs('seller_media', $filename, 'public');
+
+                $sellerMedia::create([
+                    'seller_id' => $request->seller_id,
+                    'file_path'->$path,
+                    'type' => $file->getClientMimeType()
+                ]);
+                DB::commit();
+                return response()->json([
+                    'message' => 'Media Uploaded Successfully'
+                ], 200);
+            }
+        } catch (Exception $e) {
+            DB::rollBack();
+        //Deleterns una ang file sa DB para dili kalas ug utok
+        if (isset($path) && Storage::disk('public')->exists($path)){
+            Storage::disk('public')->delete($path);
+        }
+            Log::error("Upload Failed: " . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to Upload Seller Media',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
+
     }
 
     /**
@@ -64,29 +107,32 @@ class SellerMediaController extends Controller
      */
     public function destroy(SellerMedia $sellerMedia)
     {
-        if ($sellerMedia->seller->user_id !== auth()->id()){
+        if ($sellerMedia->seller->user_id !== auth()->id()) {
             return response()->json([
                 'message' => 'Unauthorized'
             ], 403);
         }
+        $filePath = $sellerMedia->file_path;
+
         DB::beginTransaction();
         try {
-            if (Storage::disk('public')->exists($sellerMedia->file_path)){
-                Storage::disk('public')->delete($sellerMedia->file_path);
-            }
-
             $sellerMedia->delete();
             DB::commit();
+
+            if ($filePath && Storage::disk('public')->exists($filePath)) {
+                Storage::disk('public')->delete($filePath);
+            }
+
             return response()->json([
                 'message' => 'Seller Media Deleted Successfully'
             ], 200);
-        }catch (Exception $e){
+        } catch (Exception $e) {
             DB::rollBack();
             Log::error("Seller Media Delete Failed [ID: {$sellerMedia->id}] " . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Deleting Seller Data and Media Failed',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+                'message' => 'Failed to Delete Seller Media',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
     }

@@ -70,14 +70,17 @@ class MechanicMediaController extends Controller
                 'message' => 'Unauthorized'
             ], 403);
         }
+        $filePath = $mechanicMedia->file_path;
+
         DB::beginTransaction();
         try {
-            if (Storage::disk('public')->exists($mechanicMedia->file_path)) {
-                Storage::disk('public')->delete($mechanicMedia->file_path);
-            }
-
             $mechanicMedia->delete();
             DB::commit();
+
+            if ($filePath && Storage::disk('public')->exists($filePath)) {
+                Storage::disk('public')->delete($filePath);
+            }
+
             return response()->json([
                 'message' => 'Mechanic Media Successfully Deleted'
             ], 200);
@@ -86,8 +89,8 @@ class MechanicMediaController extends Controller
             Log::error("Mechanic Media Delete Failed: [{$mechanicMedia->id}]" . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Deleting Mechanic Data and Media Failed',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+                'message' => 'Failed to Delete Mechanic Media',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
     }
