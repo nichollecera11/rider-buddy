@@ -39,8 +39,10 @@ class MechanicMediaController extends Controller
             'file' => 'required|image|mimes:jpeg,png,jpg|max:2048',
         ]);
         //validation
-        $MechanicMedia = Mechanic::findOrFail($id);
-        if ($MechanicMedia->user_id !== auth()->id()) {
+        
+        $mechanic = Mechanic::findOrFail($id);
+        
+        if ($mechanic->user_id !== auth()->id()) {
             return response()->json([
                 'message' => 'Unauthorized'
             ], 403);
@@ -53,7 +55,7 @@ class MechanicMediaController extends Controller
                 $path = $file->storeAs('mechanic_media', $filename, 'public');
 
                 MechanicMedia::create([
-                    'mechanic_id' => $request->mechanic_id,
+                    'mechanic_id' => $mechanic->id,
                     'file_path' => $path,
                     'type' => $file->getClientMimeType()
                 ]);
