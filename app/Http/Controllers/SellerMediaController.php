@@ -39,8 +39,8 @@ class SellerMediaController extends Controller
             'file' => 'required|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
-        $sellerMedia = Seller::findOrFail($id);
-        if ($sellerMedia->user_id !== auth()->id()) {
+        $seller = Seller::findOrFail($id);
+        if ($seller->user_id !== auth()->id()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         DB::beginTransaction();
@@ -52,9 +52,9 @@ class SellerMediaController extends Controller
                 //salbar de public seller_media folder 
                 $path = $file->storeAs('seller_media', $filename, 'public');
 
-                $sellerMedia::create([
-                    'seller_id' => $request->seller_id,
-                    'file_path'->$path,
+                SellerMedia::create([
+                    'seller_id' => $seller->id,
+                    'file_path' => $path,
                     'type' => $file->getClientMimeType()
                 ]);
                 DB::commit();

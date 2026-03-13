@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Models\Mechanic;
 
 
 class MechanicMediaController extends Controller
@@ -31,9 +32,48 @@ class MechanicMediaController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request, $id)
     {
-        //
+        $request->validate([
+            'mechanic_id' => 'required|exists:mechanics,id',
+            'file' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+        ]);
+        //validation
+        $MechanicMedia = Mechanic::findOrFail($id);
+        if ($MechanicMedia->user_id !== auth()->id()) {
+            return response()->json([
+                'message' => 'Unauthorized'
+            ], 403);
+        }
+        DB::beginTransaction();
+        try {
+            if ($request->hasFile('file')) {
+                $file = $request->file('file');
+                $filename = time() . '_' . $file->getClientOriginalName();
+                $path = $file->storeAs('mechanic_media', $filename, 'public');
+
+                MechanicMedia::create([
+                    'mechanic_id' => $request->mechanic_id,
+                    'file_path' => $path,
+                    'type' => $file->getClientMimeType()
+                ]);
+                DB::commit();
+                return response()->json([
+                    'message' => 'Media Uploaded Succesfully'
+                ], 200);
+            }
+        } catch (Exception $e) {
+            DB::rollBack();
+            if (isset($path) && Storage::disk('public')->exists($path)) {
+                Storage::disk('public')->delete($path);
+            }
+            Log::error("Upload Failed:" . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to Upload Mechanic Media',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
     }
 
     /**
