@@ -35,7 +35,6 @@ class MechanicMediaController extends Controller
     public function store(Request $request, $id)
     {
         $request->validate([
-            'mechanic_id' => 'required|exists:mechanics,id',
             'file' => 'required|image|mimes:jpeg,png,jpg|max:2048',
         ]);
         //validation

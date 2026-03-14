@@ -35,7 +35,6 @@ class SellerMediaController extends Controller
     {
 
         $request->validate([
-            'seller_id' => 'required|exists:sellers,id',
             'file' => 'required|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 

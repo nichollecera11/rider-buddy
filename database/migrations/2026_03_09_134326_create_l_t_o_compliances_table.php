@@ -13,6 +13,20 @@ return new class extends Migration
     {
         Schema::create('l_t_o_compliances', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_motorcycle_id')->constrained()->onDelete('cascade');
+            //ORCR Details
+            $table->string('plate_number')->unique();
+            $table->string('engine_number')->unique();
+            $table->string('chassis_number')->unique();
+            $table->date('registration_expiry');
+            //Status Compliance
+            $table->enum('status',['pending' , 'approved' , 'rejected'])->default('pending');
+            $table->text('rejection_reason')->nullable();
+            //Audit Trail 
+            $table->foreignId('verified_by')->nullable()->constrained('users');
+            $table->timestamp('verified_at')->nullable();
+            $table->string('remarks')->nullable();
+
             $table->timestamps();
         });
     }
