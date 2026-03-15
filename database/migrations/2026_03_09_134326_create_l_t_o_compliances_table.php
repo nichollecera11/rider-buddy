@@ -22,10 +22,11 @@ return new class extends Migration
             //Status Compliance
             $table->enum('status',['pending' , 'approved' , 'rejected'])->default('pending');
             $table->text('rejection_reason')->nullable();
+            $table->string('remarks')->nullable();
             //Audit Trail 
             $table->foreignId('verified_by')->nullable()->constrained('users');
             $table->timestamp('verified_at')->nullable();
-            $table->string('remarks')->nullable();
+            
 
             $table->timestamps();
         });

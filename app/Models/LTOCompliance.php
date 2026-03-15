@@ -19,9 +19,10 @@ class LTOCompliance extends Model
         'registration_expiry',
         'status',
         'rejection_reason',
+        'remarks',
         'verified_by',
         'verified_at',
-        'remarks'
+        
     ];
 
     protected $casts = [
