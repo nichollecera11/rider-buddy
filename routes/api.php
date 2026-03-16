@@ -16,6 +16,8 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\ConsultationController;
 use App\Http\Controllers\UserMotorcycleController;
 use App\Http\Controllers\ConsultationMediaController;
+use App\Http\Controllers\LTOComplianceController;
+
 
 
 /*  
@@ -73,6 +75,12 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
 
     // 4. Verification Actions (Real-life Rider Buddy features)
     // Route::patch('/mechanics/{id}/verify', [MechanicController::class, 'verify']);
+
+
+    // Proxy route para sa private images
+    Route::get('admin/lto-compliance/image/{id}', [LTOComplianceController::class, 'showImage']);
+    //Admin Verification (Approve/Reject)
+    Route::patch('admin/lto-compliance/{id}/verify', [LTOComplianceController::class, 'verify']);
 });
 
 

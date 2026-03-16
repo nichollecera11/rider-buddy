@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('engine_number')->unique();
             $table->string('chassis_number')->unique();
             $table->date('registration_expiry');
+            $table->string('file_path')->nullable();
             //Status Compliance
             $table->enum('status',['pending' , 'approved' , 'rejected'])->default('pending');
             $table->text('rejection_reason')->nullable();
@@ -26,6 +27,7 @@ return new class extends Migration
             //Audit Trail 
             $table->foreignId('verified_by')->nullable()->constrained('users');
             $table->timestamp('verified_at')->nullable();
+            
             
 
             $table->timestamps();

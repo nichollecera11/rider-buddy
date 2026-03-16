@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\LTOCompliance;
 use App\Models\UserMotorcycle;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -53,14 +54,39 @@ class LTOComplianceController extends Controller
         DB::beginTransaction();
 
         try {
-            if($request->hasFile('file')) {
+            if ($request->hasFile('file')) {
                 $file = $request->file('file');
                 $filename = time() . '_' . $file->getClientOriginalName();
 
                 $path = $file->storeAs('lto_docs', $filename, 'private');
 
-                
+                LTOCompliance::create([
+                    'user_motorcycle_id' => $user_motorcycle->id,
+                    'plate_number' => $fields['plate_number'],
+                    'engine_number' => $fields['engine_number'],
+                    'chassis_number' => $fields['chassis_number'],
+                    'registration_expiry' => $fields['registration_expiry'],
+                    'status' => 'pending',
+                    'file_path' => $path, // Siguruha nga naa ni sa imong migration/model
+                ]);
+
+                DB::commit();
+                return response()->json([
+                    'message' => 'LTO Documents Submitted for Verification'
+                ], 201);
+
+
+
             }
+        } catch (Exception $e) {
+            DB::rollBack();
+            if (isset($path) && Storage::disk('private')->exists($path)) {
+                Storage::disk('private')->delete($path);
+            }
+            return response()->json([
+                'error' => $e->getMessage(),
+                'message' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
         }
     }
 
@@ -94,5 +120,24 @@ class LTOComplianceController extends Controller
     public function destroy(LTOCompliance $lTOCompliance)
     {
         //
+    }
+
+    public function showImage($id)
+    {
+        $lto = LTOCompliance::findOrFail($id);
+        if (!$lto->file_path || Storage::disk('private')->exists($lto->file_path)) {
+            return response()->json([
+                'message' => 'Image Not Found'
+            ], 404);
+        }
+        $path = Storage::disk('private')->path($lto->file_path);
+        return response()->file($path);
+    }
+
+    //Admin Verification
+
+    public function verify(Request $request, $id)
+    {
+
     }
 }

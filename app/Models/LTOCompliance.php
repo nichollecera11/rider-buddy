@@ -17,6 +17,7 @@ class LTOCompliance extends Model
         'engine_number',
         'chassis_number',
         'registration_expiry',
+        'file_path',
         'status',
         'rejection_reason',
         'remarks',
