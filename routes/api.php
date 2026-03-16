@@ -51,6 +51,11 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::get('mechanic/consultations', [ConsultationController::class, 'mechanicRequests']);
     // Para sa pag-delete o pag-manage og tagsa-tagsa nga file
     Route::apiResource('consultation-media', ConsultationMediaController::class)->only(['destroy']);
+    // --- RIDER ROUTES ---
+    // Mag-submit og documents para sa iyang motor
+    Route::post('/lto-compliance/{motorcycle_id}', [LTOComplianceController::class, 'store']);
+    // I-check ang status sa iyang compliance
+    Route::get('/lto-compliance/{motorcycle_id}', [LTOComplianceController::class, 'showByMotorcycle']);
 
     Route::post('/logout', [AuthController::class, 'logout']);
 });
@@ -76,7 +81,8 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     // 4. Verification Actions (Real-life Rider Buddy features)
     // Route::patch('/mechanics/{id}/verify', [MechanicController::class, 'verify']);
 
-
+    // Listahan sa tanang pending para ma-review sa admin
+        Route::get('/admin/lto-compliance/pending', [LTOComplianceController::class, 'listpending']);
     // Proxy route para sa private images
     Route::get('admin/lto-compliance/image/{id}', [LTOComplianceController::class, 'showImage']);
     //Admin Verification (Approve/Reject)

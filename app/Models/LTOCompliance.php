@@ -34,10 +34,14 @@ class LTOCompliance extends Model
     public function verifier() {
         return $this->belongsTo(User::class, 'verified_by');
     }
-    public function motorcycle() {
+    public function user_motorcycle() {
         return $this->belongsTo(UserMotorcycle::class, 'user_motorcycle_id');
     }
     // public function media(): HasMany {
     //     return $this->hasMany(UserMotorcycleMedia::class, 'user_motorcycle_id', 'user_motorcycle_id');
     // }
+
+    public function media () {
+        return $this->hasMany(LTOComplianceMedia::class);
+    }
 }
