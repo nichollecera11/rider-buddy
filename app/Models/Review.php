@@ -12,6 +12,7 @@ class Review extends Model
         'user_id',
         'reviewable_id',
         'reviewable_type',
+        'consultation_id',
         'rating',
         'headline',
         'comment',
@@ -21,7 +22,7 @@ class Review extends Model
     protected $casts = [
         'rating' => 'decimal:1'
     ];
-    
+
     public function reviewable()
     {
         return $this->morphTo();
@@ -35,5 +36,9 @@ class Review extends Model
     {
         // Kini ang mag-connect sa reviews table ngadto sa images table
         return $this->morphMany(Image::class, 'imageable');
+    }
+    public function consultation()
+    {
+        return $this->belongsTo(Consultation::class);
     }
 }

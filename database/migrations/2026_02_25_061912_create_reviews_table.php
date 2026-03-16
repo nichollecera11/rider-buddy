@@ -13,6 +13,7 @@ return new class extends Migration {
         Schema::create('reviews', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->foreignId('consultation_id')->nullable()->constrained();
             $table->morphs('reviewable');
 
             // 1. Rating (Standard)

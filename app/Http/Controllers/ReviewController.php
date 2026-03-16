@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Seller;
 use App\Models\Mechanic;
+use App\Models\Consultation;
 
 class ReviewController extends Controller
 {
@@ -41,8 +42,7 @@ class ReviewController extends Controller
     public function store(Request $request)
     {
         $fields = $request->validate([
-            'reviewable_id' => 'required|integer',
-            'reviewable_type' => 'required|string|in:App\Models\Mechanic,App\Models\Seller',
+            'consultation_id' => 'required|exists:consultation,id',
             'rating' => 'required|integer|min:1|max:5',
             'headline' => 'nullable|string|max:255',
             'comment' => 'nullable|string',
@@ -52,11 +52,20 @@ class ReviewController extends Controller
 
         DB::beginTransaction();
         try {
+            $consultation = Consultation::where('id', $fields['consultation_id'])->where('user_id', auth()->id())->firstOrFail();
             $fields['user_id'] = auth()->id();
 
-            // I-exclude ang images gikan sa main review creation
-            $reviewData = collect($fields)->except(['images'])->toArray();
-            $review = Review::create($reviewData);
+
+            $review = Review::create([
+                'user_id' => auth()->id(),
+                'consultation_id' => $consultation->id,
+                'reviewable_id' => $consultation->mechanic_id,
+                'reviewable_type' => 'App\Models\Mechanic',
+                'rating' => $fields['rating'],
+                'headline' => $fields['headline'],
+                'comment' => $fields['comment'],
+
+            ]);
 
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $image) {
@@ -82,7 +91,7 @@ class ReviewController extends Controller
             //     ]);
             // }
 
-            $this->recomputeRating($fields['reviewable_id'], $fields['reviewable_type']);
+            $this->recomputeRating($review->reviewable_id, $review->reviewable_type);
             DB::commit();
 
             // Naay typo sa imong original response (status code was inside the array)

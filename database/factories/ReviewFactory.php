@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Seller;
 use App\Models\Mechanic;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use App\Models\Consultation;
 
 class ReviewFactory extends Factory
 {
@@ -25,6 +26,7 @@ class ReviewFactory extends Factory
 
         return [
             'user_id' => User::inRandomOrder()->first()->id ?? User::factory(),
+            'consultation_id' => Consultation::inRandomOrder()->first()->id ?? Consultation::factory(),
             'reviewable_id' => $reviewableId,
             'reviewable_type' => $reviewableType,
             
