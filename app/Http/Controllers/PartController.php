@@ -9,6 +9,7 @@ use App\Models\Seller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\ImageFile;
+use Illuminate\Support\Facades\Log;
 
 class PartController extends Controller
 {
@@ -103,7 +104,7 @@ class PartController extends Controller
             return response()->json(['message' => 'Parts Saved', 'data' => $part->load('images', 'brand', 'category', 'seller')], 201);
         } catch (Exception $e) {
             DB::rollBack();
-
+            Log::error("Error Listing Failed: " . $e->getMessage());
             return response()->json([
                 'message' => 'Error Listing Parts',
                 'error' => $e->getMessage()
@@ -209,6 +210,7 @@ class PartController extends Controller
 
         } catch (Exception $e) {
             DB::rollBack();
+            Log::error("Updating Parts Failed: " . $e->getMessage());
             return response()->json([
                 'message' => 'Error Updating Parts',
                 'error' => $e->getMessage()
@@ -252,6 +254,7 @@ class PartController extends Controller
             return response()->json(['message' => ' Part and associated images deleted successfully', 'data' => $part, 'id' => $id], 200);
         } catch (Exception $e) {
             DB::rollBack();
+            Log::error("Parts and Associated Media Files Delete Failed: " . $e->getMessage());
             return response()->json(['message' => ' Deleting Parts Failed', 'error' => $e->getMessage()], 500);
         }
     }

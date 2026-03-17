@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Exception;
 use Illuminate\Http\Request;
 use App\Models\Review;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use App\Models\Seller;
-use App\Models\Mechanic;
+// use App\Models\Seller;
+// use App\Models\Mechanic;
 use App\Models\Consultation;
+
 
 class ReviewController extends Controller
 {
@@ -42,7 +44,7 @@ class ReviewController extends Controller
     public function store(Request $request)
     {
         $fields = $request->validate([
-            'consultation_id' => 'required|exists:consultation,id',
+            'consultation_id' => 'required|exists:consultations,id',
             'rating' => 'required|integer|min:1|max:5',
             'headline' => 'nullable|string|max:255',
             'comment' => 'nullable|string',
@@ -221,16 +223,18 @@ class ReviewController extends Controller
         if (!class_exists($type))
             return;
 
-        $reviewable = $type::find($id);
-
-        if ($reviewable) {
+        //Refactored 3/17/2026 8:28 pm
+        try {
             $averageRating = Review::where('reviewable_id', $id)
                 ->where('reviewable_type', $type)
                 ->avg('rating');
 
             $type::where('id', $id)->update([
-                'rating' => round($averageRating, 1)
+                'rating' => $averageRating ? round($averageRating, 1) : 0
             ]);
+
+        } catch (Exception $e) {
+            Log::error("Rating Computation Failed for{$type} ID {$id}: " . $e->getMessage());
         }
     }
 }
