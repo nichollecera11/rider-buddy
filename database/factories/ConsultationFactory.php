@@ -4,7 +4,7 @@ namespace Database\Factories;
 use App\Models\Consultation;
 use App\Models\User;
 use App\Models\Mechanic;
-use App\Models\Motorcycle;
+use App\Models\UserMotorcycle;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class ConsultationFactory extends Factory
@@ -17,7 +17,7 @@ class ConsultationFactory extends Factory
             // Mo-pili ni og random existing ID o mobuhat og bag-o
             'user_id' => User::factory(), 
             'mechanic_id' => Mechanic::factory(),
-            'motorcycle_id' => Motorcycle::factory(),
+            'user_motorcycle_id' => UserMotorcycle::factory(),
             
             'consultation_type' => $this->faker->randomElement(['standard', 'sos']),
             'issue_description' => $this->faker->paragraph(),

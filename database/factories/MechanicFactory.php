@@ -28,14 +28,12 @@ class MechanicFactory extends Factory
             'years_experience' => $this->faker->numberBetween(1, 20),
             'is_verified' => $this->faker->boolean(),
             'is_available' => true,
-            'rating' => $this->faker->randomFloat(1, 1, 5),
             'diagnostic_fee_base' => $this->faker->randomFloat(2, 100, 500),
             'latitude' => $this->faker->latitude(10.2, 10.4), // Random Cebu-ish lat
             'longitude' => $this->faker->longitude(123.8, 124.0), // Random Cebu-ish long
             'service_fee_starts_at' => $this->faker->randomFloat(2, 500, 2000),
             'is_24_7' => $this->faker->boolean(30), // 30% chance nga open 24/7 (pananglitan vulcanizing)
             'offers_towing' => $this->faker->boolean(20), // Pipila ra ang naay pang-guyod
-            'image' => 'mechanic_default.jpg',
             
         ];
     }

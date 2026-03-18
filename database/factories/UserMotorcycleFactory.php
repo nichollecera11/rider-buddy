@@ -24,7 +24,7 @@ class UserMotorcycleFactory extends Factory
         'model' => $this->faker->word(),
         'year_model' => $this->faker->year(),
         'engine_capacity' => $this->faker->randomElement([125, 155, 400, 650]),
-        'transmission' => $this->faker->randomElement(['manual', 'automatic', 'semi_automatic', 'none_electric']),
+        'transmission' => $this->faker->randomElement(['manual', 'automatic', 'semi-automatic', 'none-electric']),
         'fuel_type' => $this->faker->randomElement(['gasoline', 'electric']),
         'color' => $this->faker->safeColorName(),
         
