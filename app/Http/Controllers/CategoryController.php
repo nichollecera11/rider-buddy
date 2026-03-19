@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use Exception;
 use Illuminate\Http\Request;
 use App\Models\Category;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Str;
 
 class CategoryController extends Controller
 {
@@ -12,7 +16,21 @@ class CategoryController extends Controller
      */
     public function index()
     {
-        return response()->json(Category::all());
+        try {
+            $categories = Category::select('id', 'name', 'slug', 'description')->orderBy('name', 'asc')->get();
+            return response()->json([
+                'status' => 'success',
+                'count' => $categories->count(),
+                'data' => $categories
+            ], 200);
+
+        }catch (Exception $e){
+            Log::error("Category Index Error:" . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to Fetch Category'
+            ], 500);
+        }
     }
 
     /**

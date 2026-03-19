@@ -67,6 +67,8 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     // 1. Dashboard Stats (Kani ang una para dili ma-intercept sa resource)
     Route::get('/stats', [AdminDashboardController::class, 'index']);
 
+    Route::apiResource('brands', BrandController::class);
+    
     // 2. Admin Reviews (Kini mo-generate og /api/admin/reviews)
     // Direkta na ni tanan: index, show, store, update, destroy para sa Admin
     Route::apiResource('reviews', ReviewController::class);

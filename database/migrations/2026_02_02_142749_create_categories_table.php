@@ -16,6 +16,7 @@ return new class extends Migration {
             $table->string('slug')->unique(); // e.g., "engine-parts" (para sa URL puhon)
             $table->string('image')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
