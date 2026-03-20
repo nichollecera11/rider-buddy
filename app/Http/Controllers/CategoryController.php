@@ -38,7 +38,31 @@ class CategoryController extends Controller
      */
     public function store(Request $request)
     {
-        //
+     abort_if(auth()->user()->role !== 'admin', 403, 'Unauthorized');
+     $request->validate ([
+        'name' => 'required|string|unique:categories,name|max:255',
+     ]);
+
+     DB::beginTransaction();
+     try{
+        $category = Category::create([
+            'name' => $request->name,
+            'slug' => Str::slug($request->name)
+        ]);
+        DB::commit();
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Category Created  Successfully'
+        ], 201);
+     }catch (Exception $e){
+        DB::rollBack();
+        Log::error("Category Create Error: " . $e->getMessage());
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Category Save Failed',
+            'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+        ], 500);
+     }
     }
 
     /**
