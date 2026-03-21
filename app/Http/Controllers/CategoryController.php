@@ -41,18 +41,21 @@ class CategoryController extends Controller
         abort_if(auth()->user()->role !== 'admin', 403, 'Unauthorized');
         $request->validate([
             'name' => 'required|string|unique:categories,name|max:255',
+            'description' => 'nullable|string|max:500'
         ]);
 
         DB::beginTransaction();
         try {
             $category = Category::create([
                 'name' => $request->name,
-                'slug' => Str::slug($request->name)
+                'slug' => Str::slug($request->name),
+                'description' => $request->description
             ]);
             DB::commit();
             return response()->json([
                 'status' => 'success',
-                'message' => 'Category Created  Successfully'
+                'message' => 'Category Created  Successfully',
+                'data' => $category
             ], 201);
         } catch (Exception $e) {
             DB::rollBack();
@@ -83,13 +86,15 @@ class CategoryController extends Controller
     {
         abort_if(auth()->user()->role !== 'admin', 403, 'Unauthorized');
         $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name, ' . $category->id,
+            'name' => 'required|string|max:255|unique:categories,name,' . $category->id,
+            'description' => 'nullable|string|max:500'
         ]);
         DB::beginTransaction();
-        try{
+        try {
             $category->update([
-                'name'=> $request->name,
-                'slug' => Str::slug($request->name)
+                'name' => $request->name,
+                'slug' => Str::slug($request->name),
+                'description' => $request->description
             ]);
             DB::commit();
             return response()->json([
@@ -97,8 +102,8 @@ class CategoryController extends Controller
                 'message' => 'Category Updated Successfully',
                 'data' => $category
             ], 201);
-        }catch (Exception $e){
-            Db::rollBack();
+        } catch (Exception $e) {
+            DB::rollBack();
             Log::error("Category Update Error: " . $e->getMessage());
             return response()->json([
                 'status' => 'error',
@@ -111,8 +116,26 @@ class CategoryController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(Category $category)
     {
-        //
+        abort_if(auth()->user()->role !== 'admin', 403, 'Unauthorized');
+        DB::beginTransaction();
+        try {
+            $category->delete();
+            DB::commit();
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Category Deleted Successfully'
+            ], 201);
+        }catch (Exception $e){
+            DB::rollBack();
+            Log::error("Category Delete Error: " . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Category Delete Failed',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+             ], 500);
+        }
     }
+
 }

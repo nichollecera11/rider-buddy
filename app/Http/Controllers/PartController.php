@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\ImageFile;
 use Illuminate\Support\Facades\Log;
+use App\Http\Resources\PartResource;
 
 class PartController extends Controller
 {
@@ -47,20 +48,24 @@ class PartController extends Controller
         });
         $parts = $query->latest()->paginate(12);
 
-        return response()->json($parts);
+        // return response()->json($parts);
+        return PartResource::collection($parts);
 
     }
 
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request, Part $part)
     {
+
+        abort_if(!in_array(auth()->user()->role, ['admin', 'seller']), 403, 'Unauthorized');
+
         //kwaon sa nato una ang seller para dili nata mag butang ug seller sa seeding
         $seller = Seller::where('user_id', auth()->id())->first();
 
-        if (!$seller) {
-            return response()->json(['message' => 'Need to Create Seller Profile'], 403);
+        if (!$seller && auth()->user()->role === 'seller') {
+            return response()->json(['message' => 'You need to create Seller Profile']);
         }
 
         $fields = $request->validate([
@@ -77,13 +82,14 @@ class PartController extends Controller
             'is_universal' => 'required|boolean',
             'dimensions' => 'nullable|string',
             'is_open_for_swap' => 'required|boolean',
-            'swap_preferences' => 'nullable|required_if:is_open_for_swap,true,1|string',
+            'swap_preferences' => 'required_if:is_open_for_swap,true,1|string',
             'description' => 'nullable|string',
             'location' => 'nullable|string',
+            'images' => 'nullable|array|max:5',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
         ]);
 
-        $fields['seller_id'] = $seller->id;
+        $fields['seller_id'] = $seller ? $seller->id : 1;
 
         DB::beginTransaction();
 
@@ -95,19 +101,18 @@ class PartController extends Controller
                     $path = $imageFile->store('images/parts', 'public');
                     $part->images()->create([
                         'path' => $path,
-                        'is_primary' => $index === 0,
                     ]);
                 }
             }
             DB::commit();
 
-            return response()->json(['message' => 'Parts Saved', 'data' => $part->load('images', 'brand', 'category', 'seller')], 201);
+            return response()->json(['message' => 'Parts Saved', 'data' => $part->load('images', 'brand', 'category', 'seller.user')], 201);
         } catch (Exception $e) {
             DB::rollBack();
             Log::error("Error Listing Failed: " . $e->getMessage());
             return response()->json([
                 'message' => 'Error Listing Parts',
-                'error' => $e->getMessage()
+                'error' => config('app.debug')? $e->getMessage() : 'Server Error'
             ], 500);
         }
 
@@ -116,22 +121,19 @@ class PartController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(Part $part)
     {
-        $part = Part::with(['seller', 'category', 'brand'])->find($id);
-        if (!$part) {
-            return response()->json(['message' => 'Parts not found']);
-        }
-        return response()->json($part);
+        $part->load(['seller', 'category', 'brand', 'images']);
+        return new PartResource($part);
 
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(Request $request, Part $part)
     {
-        $part = Part::find($id);
+        abort_if(!in_array(auth()->user()->role, ['admin','seller']), 403, 'Unauthorized');
 
         if (!$part) {
             return response()->json(['message' => 'Parts not found'], 404);

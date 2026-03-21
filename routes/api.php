@@ -68,6 +68,8 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::get('/stats', [AdminDashboardController::class, 'index']);
 
     Route::apiResource('brands', BrandController::class);
+    Route::apiResource('categories', CategoryController::class);
+    Route::apiResource('parts', PartController::class);
     
     // 2. Admin Reviews (Kini mo-generate og /api/admin/reviews)
     // Direkta na ni tanan: index, show, store, update, destroy para sa Admin

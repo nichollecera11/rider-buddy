@@ -16,6 +16,7 @@ return new class extends Migration {
             $table->foreignId('category_id')->constrained();
             $table->foreignId('brand_id')->constrained();
             $table->string('part_name');
+            $table->string('slug')->unique();
             $table->string('part_number')->nullable(); // Pain Point #1: Para sa saktong fitment
             // Genuine (OEM) vs Replacement
             $table->enum('type', ['original', 'replacement', 'aftermarket'])->default('aftermarket');
@@ -33,6 +34,9 @@ return new class extends Migration {
             $table->text('description')->nullable();
             // Para sa Location (usahay lahi ang location sa shop kaysa seller)
             $table->string('location')->nullable();
+            $table->string('status')->default('available');
+            $table->string('main_image')->nullable();
+            $table->softDeletes();
             $table->timestamps();
         });
     }

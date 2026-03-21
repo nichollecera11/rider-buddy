@@ -2,17 +2,21 @@
 
 namespace App\Models;
 
+use Str;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Part extends Model
 {
     use HasFactory; // 2. I-use ni sa sulod sa class
+    use SoftDeletes;
 
     protected $fillable = [
         'seller_id',
         'category_id',
         'brand_id',
+        'slug',
         'part_name',
         'part_number',
         'type',
@@ -27,6 +31,8 @@ class Part extends Model
         'swap_preferences',
         'description',
         'location',
+        'status',
+        'main_image'
     ];
 
     protected $casts = [
@@ -43,6 +49,18 @@ class Part extends Model
         // Kon ang 'oem_compatibility' listahan sa mga motor, 
         // puyde sab ni nimo himoon og array puhon.
     ];
+
+    protected static function boot () {
+        parent::boot();
+        static::creating(function ($part){
+         if (empty($part->slug)) {
+            $part->slug = Str::slug($part->part_name) . '-' . rand(1000, 9999);
+         }
+         if (empty($part->status)){
+            $part->status = 'available';
+         }
+        });
+    }
 
     public function seller()
     {

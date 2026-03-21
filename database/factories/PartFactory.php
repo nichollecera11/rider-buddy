@@ -6,6 +6,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Seller;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Str;
 
 class PartFactory extends Factory
 {
@@ -32,11 +33,14 @@ class PartFactory extends Factory
             'brand_id' => Brand::inRandomOrder()->first()->id ?? Brand::factory(),
             
             'part_name' => $this->faker->randomElement($this->faker->randomElement($parts)),
+            'slug' => fn (array $attributes) => Str::slug($attributes['part_name']) . '_'  . $this->faker->unique()->numberBetween(1000, 9999),
             'part_number' => strtoupper($this->faker->bothify('??-####-###')),
             
             'type' => $this->faker->randomElement(['original', 'replacement', 'aftermarket']),
             'condition' => $this->faker->randomElement(['new', 'used']),
-            
+            'status' => $this->faker->randomElement(['available','available','available','available','sold','reserved']),
+            'main_image' => 'parts/placeholder/part-' . $this->faker->numberBetween(1, 5) . 'jpg',
+             
             'price' => $this->faker->numberBetween(150, 8500),
             'is_negotiable' => $this->faker->boolean(70),
             'stock_quantity' => $this->faker->numberBetween(1, 50),
