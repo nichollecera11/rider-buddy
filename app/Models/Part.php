@@ -6,6 +6,8 @@ use Str;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class Part extends Model
 {
@@ -50,15 +52,66 @@ class Part extends Model
         // puyde sab ni nimo himoon og array puhon.
     ];
 
-    protected static function boot () {
+    protected static function boot()
+    {
         parent::boot();
-        static::creating(function ($part){
-         if (empty($part->slug)) {
-            $part->slug = Str::slug($part->part_name) . '-' . rand(1000, 9999);
-         }
-         if (empty($part->status)){
-            $part->status = 'available';
-         }
+        static::creating(function ($part) {
+            if (empty($part->slug)) {
+                $part->slug = Str::slug($part->part_name) . '-' . rand(1000, 9999);
+            }
+            if (empty($part->status)) {
+                $part->status = 'available';
+            }
+        });
+    }
+    public static function storeWithImages(array $data, $imageFiles = null)
+    {
+        return DB::transaction(function () use ($data, $imageFiles) {
+            $part = self::create($data);
+            if ($imageFiles) {
+                foreach ($imageFiles as $file) {
+                    $path = $file->store('images/parts', 'public');
+                    $part->images()->create([
+                        'path' => $path,
+                    ]);
+                }
+            }
+            return $part;
+        });
+    }
+    public function updateWithImages(array $data, $newImages = null, array $removeImageIds = null, $primaryImageId = null)
+    {
+        return DB::transaction(function () use ($data, $newImages, $removeImageIds, $primaryImageId) {
+            //update ta text fields
+            $this->update($data);
+            //Delete ta sa selected images gikan sa storage ug database
+            if ($removeImageIds) {
+                foreach ($removeImageIds as $id) {
+                    $image = $this->images()->find($id);
+                    if ($image) {
+                        Storage::disk('public')->delete($image->path);
+                        $image->delete();
+                    }
+                }
+            }
+            // Save new Image
+            if ($newImages) {
+                foreach ($newImages as $file) {
+                    $path = $file->store('images/parts', 'public');
+                    $this->images()->create([
+                        'path' => $path
+                    ]);
+                }
+            }
+            if ($primaryImageId){
+                //reset
+                $this->images()->update(['is_primary' => false]);
+                //set to true
+                $this->images()->where('id', $primaryImageId)->update([
+                    'is_primary' => true
+                ]);
+            }
+            return $this;
         });
     }
 

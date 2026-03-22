@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\PartRequest;
 use Exception;
 use Illuminate\Http\Request;
 use App\Models\Part;
@@ -56,7 +57,7 @@ class PartController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request, Part $part)
+    public function store(PartRequest $request)
     {
 
         abort_if(!in_array(auth()->user()->role, ['admin', 'seller']), 403, 'Unauthorized');
@@ -67,48 +68,17 @@ class PartController extends Controller
         if (!$seller && auth()->user()->role === 'seller') {
             return response()->json(['message' => 'You need to create Seller Profile']);
         }
-
-        $fields = $request->validate([
-            'category_id' => 'required|exists:categories,id',
-            'brand_id' => 'required|exists:brands,id',
-            'part_name' => 'required|string|max:255',
-            'part_number' => 'nullable|string',
-            'type' => 'required|in:original,replacement,aftermarket',
-            'condition' => 'required|in:new,used',
-            'price' => 'required|numeric|min:0',
-            'is_negotiable' => 'required|boolean',
-            'stock_quantity' => 'required|integer|min:0',
-            'oem_compatibility' => 'nullable|string',
-            'is_universal' => 'required|boolean',
-            'dimensions' => 'nullable|string',
-            'is_open_for_swap' => 'required|boolean',
-            'swap_preferences' => 'required_if:is_open_for_swap,true,1|string',
-            'description' => 'nullable|string',
-            'location' => 'nullable|string',
-            'images' => 'nullable|array|max:5',
-            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
-        ]);
+        //PartRequest ga handle ani
+        $fields = $request->validated();
 
         $fields['seller_id'] = $seller ? $seller->id : 1;
 
-        DB::beginTransaction();
-
         try {
-            $part = Part::create($fields);
-
-            if ($request->hasFile('images')) {
-                foreach ($request->file('images') as $index => $imageFile) {
-                    $path = $imageFile->store('images/parts', 'public');
-                    $part->images()->create([
-                        'path' => $path,
-                    ]);
-                }
-            }
-            DB::commit();
-
+            //Naa ni sa PartModel
+            $part = Part::storeWithImages($fields, $request->file('images'));
+           
             return response()->json(['message' => 'Parts Saved', 'data' => $part->load('images', 'brand', 'category', 'seller.user')], 201);
         } catch (Exception $e) {
-            DB::rollBack();
             Log::error("Error Listing Failed: " . $e->getMessage());
             return response()->json([
                 'message' => 'Error Listing Parts',
@@ -131,79 +101,39 @@ class PartController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Part $part)
+    public function update(PartRequest $request, Part $part)
     {
-        abort_if(!in_array(auth()->user()->role, ['admin','seller']), 403, 'Unauthorized');
 
-        if (!$part) {
-            return response()->json(['message' => 'Parts not found'], 404);
+        $user = auth()->user();
+        $seller = Seller::where('user_id', $user->id)->first();
+
+        if($user->role !== 'admin'){
+            if (!$seller || $part->seller_id !== $seller->id){
+                return response()->json(['message' => 'Unauthorized: You do not own this part'], 403);
+            }
         }
+        // abort_if(!in_array(auth()->user()->role, ['admin','seller']), 403, 'Unauthorized');
 
-        $seller = Seller::where('user_id', auth()->id())->first();
+        // if (!$part) {
+        //     return response()->json(['message' => 'Parts not found'], 404);
+        // }
 
-        if (!$seller || $part->seller_id !== $seller->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        // $seller = Seller::where('user_id', auth()->id())->first();
 
-        $fields = $request->validate([
-            'category_id' => 'sometimes|required|exists:categories,id',
-            'brand_id' => 'sometimes|required|exists:brands,id',
-            'part_name' => 'sometimes|required|string|max:255',
-            'part_number' => 'nullable|string',
-            'type' => 'sometimes|required|in:original,replacement,aftermarket',
-            'condition' => 'sometimes|required|in:new,used',
-            'price' => 'sometimes|required|numeric|min:0',
-            'is_negotiable' => 'sometimes|required|boolean',
-            'stock_quantity' => 'sometimes|required|integer|min:0',
-            'oem_compatibility' => 'nullable|string',
-            'is_universal' => 'sometimes|required|boolean',
-            'dimensions' => 'nullable|string',
-            'is_open_for_swap' => 'sometimes|required|boolean',
-            'swap_preferences' => 'nullable|required_if:is_open_for_swap,true,1|string',
-            'description' => 'nullable|string',
-            'location' => 'nullable|string',
-            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
-            'remove_images' => 'nullable|array',
-            'primary_image_id' => 'nullable|integer'
-        ]);
+        // if (!$seller || $part->seller_id !== $seller->id) {
+        //     return response()->json(['message' => 'Unauthorized'], 403);
+        // }
+
+        $fields = $request->validated();
 
         DB::beginTransaction();
         try {
-            // 1. FILTER DATA: Kuhaa lang ang columns nga naa gyud sa 'parts' table
-            // Gigamit nato ang array_diff_key para sigurado nga ang text fields ra ang ma-update
-            $dbFields = collect($fields)->except(['remove_images', 'primary_image_id', 'images'])->toArray();
-            $part->update($dbFields);
-
-            // Delete ang mga gi select na pics
-            if ($request->has('remove_images')) {
-                $imagesToDelete = $part->images()->whereIn('id', $request->remove_images)->get();
-                foreach ($imagesToDelete as $img) {
-                    if (Storage::disk('public')->exists($img->path)) {
-                        Storage::disk('public')->delete($img->path);
-                    }
-                    $img->delete();
-                }
-            }
-
-            // Upload ug Bag ong pic
-            if ($request->hasFile('images')) {
-                foreach ($request->file('images') as $imageFile) {
-                    $path = $imageFile->store('images/parts', 'public');
-                    $part->images()->create([
-                        'path' => $path,
-                        'is_primary' => false,
-                    ]);
-                }
-            }
-
-            // 4. SET PRIMARY IMAGE
-            // I-update lang kon ang ID nga gipasa kay existing pa (wala na-delete)
-            if ($request->has('primary_image_id')) {
-                $part->images()->update(['is_primary' => false]);
-                $part->images()->where('id', $request->primary_image_id)->update(['is_primary' => true]);
-            }
-
-            DB::commit();
+            $part->updateWithImages(
+                $request->validated(),
+                $request->file('images'),
+                $request->remove_images,
+                $request->primary_image_id
+            );
 
             return response()->json([
                 'message' => 'Parts Updated Successfully',
