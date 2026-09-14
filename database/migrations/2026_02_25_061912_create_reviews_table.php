@@ -17,7 +17,8 @@ return new class extends Migration {
             $table->morphs('reviewable');
 
             // 1. Rating (Standard)
-            $table->unsignedTinyInteger('rating')->default(5); // Mas tipid sa memory (0-255 range)
+            $table->unsignedTinyInteger('rating')->nullable(5); // Mas tipid sa memory (0-255 range)
+            
 
             // 2. Headline/Title (User Friendly)
             // Usahay ang rider gusto lang mo-ingon og "Solid kaayo!" bago ang taas nga comment.

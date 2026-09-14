@@ -35,7 +35,7 @@ class Consultation extends Model
         'estimated_repair_costs' => 'decimal:2',
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
-        
+
     ];
 
     // 🚀 MAO NI ANG NA-MISSING NIMO NGA RELATIONSHIP
@@ -60,5 +60,9 @@ class Consultation extends Model
     public function media()
     {
         return $this->hasMany(ConsultationMedia::class, 'consultation_id');
+    }
+    public function diagnosticReport()
+    {
+        return $this->hasOne(DiagnosticReport::class);
     }
 }

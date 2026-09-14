@@ -17,6 +17,7 @@ use App\Http\Controllers\ConsultationController;
 use App\Http\Controllers\UserMotorcycleController;
 use App\Http\Controllers\ConsultationMediaController;
 use App\Http\Controllers\LTOComplianceController;
+use App\Http\Controllers\DiagnosticReportController;
 
 
 
@@ -58,6 +59,8 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::get('/lto-compliance/{motorcycle_id}', [LTOComplianceController::class, 'showByMotorcycle']);
 
     Route::post('/logout', [AuthController::class, 'logout']);
+    // Diagnostic Reports (Shallow Nested Resource)
+    Route::apiResource('consultations.diagnostic-reports', DiagnosticReportController::class)->shallow();
 });
 
 
@@ -70,7 +73,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::apiResource('brands', BrandController::class);
     Route::apiResource('categories', CategoryController::class);
     Route::apiResource('parts', PartController::class);
-    
+
     // 2. Admin Reviews (Kini mo-generate og /api/admin/reviews)
     // Direkta na ni tanan: index, show, store, update, destroy para sa Admin
     Route::apiResource('reviews', ReviewController::class);
@@ -78,7 +81,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     // Verification Routes
     Route::patch('/mechanics/{mechanic}/verify', [MechanicController::class, 'verify']);
     Route::patch('/sellers/{seller}/verify', [SellerController::class, 'verify']);
-    
+
     // User Management CRUD
     Route::apiResource('users', UserController::class)->only(['index', 'show', 'update', 'destroy']);
 
@@ -86,7 +89,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     // Route::patch('/mechanics/{id}/verify', [MechanicController::class, 'verify']);
 
     // Listahan sa tanang pending para ma-review sa admin
-        Route::get('/admin/lto-compliance/pending', [LTOComplianceController::class, 'listpending']);
+    Route::get('/admin/lto-compliance/pending', [LTOComplianceController::class, 'listpending']);
     // Proxy route para sa private images
     Route::get('admin/lto-compliance/image/{id}', [LTOComplianceController::class, 'showImage']);
     //Admin Verification (Approve/Reject)

@@ -80,4 +80,9 @@ class Mechanic extends Model
 
         return round($this->reviews->avg('rating'), 1) ?: 0.0;
     }
+
+    public function diagnosticReports()
+    {
+        return $this->hasMany(DiagnosticReport::class);
+    }
 }

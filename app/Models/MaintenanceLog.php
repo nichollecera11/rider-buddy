@@ -19,7 +19,8 @@ class MaintenanceLog extends Model
         'odometer_reading',
         'service_date',
         'cost',
-        'is_verified_by_mechanic'
+        'is_verified_by_mechanic',
+        'diagnostic_report_id'
     ];
 
     //Relationship
@@ -28,6 +29,12 @@ class MaintenanceLog extends Model
     }
     public function mechanic(){
         return $this->belongsTo(Mechanic::class);
+    }
+
+    // Link to the verified diagnosis (optional)
+    public function diagnosticReport()
+    {
+        return $this->belongsTo(DiagnosticReport::class);
     }
 
 }
