@@ -126,7 +126,6 @@ class PartController extends Controller
 
         $fields = $request->validated();
 
-        DB::beginTransaction();
         try {
             $part->updateWithImages(
                 $request->validated(),
@@ -141,11 +140,10 @@ class PartController extends Controller
             ]);
 
         } catch (Exception $e) {
-            DB::rollBack();
             Log::error("Updating Parts Failed: " . $e->getMessage());
             return response()->json([
                 'message' => 'Error Updating Parts',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
     }
