@@ -16,9 +16,59 @@ class DiagnosticReportController extends Controller
      */
     public function index(Request $request)
     {
-        // Example index: gets all reports. You can filter this later by user or mechanic.
-        $reports = DiagnosticReport::with(['consultation', 'mechanic.user'])->latest()->paginate(10);
-        return response()->json($reports);
+        $user = auth()->user();
+
+        try {
+            $query = DiagnosticReport::with([
+                'consultation.motorcycle',
+                'mechanic.user',
+                'maintenanceLogs', //Optional, if you want to show if it was repaired
+            ]);
+
+            // 2. Role Filtering (Crucial for Privacy)
+            if ($user->mechanic) {
+                $query->where('mechanic_id', $user->mechanic->id);
+            } else {
+                $query->whereHas('consultation', function ($q) use ($user) {
+                    $q->where('user_id', $user->id);
+                });
+            }
+
+            $query->when($request->status, function ($q, $status) {
+                $q->where('status', $status);
+            })
+
+                ->when($request->severity, function ($q, $severity) {
+                    $q->where('severity', $severity);
+                })
+
+                ->when($request->search, function ($q, $search) {
+                    $q->where(function ($innerQuery) use ($search) {
+                        $innerQuery->where('findings', 'like', "%$search%")
+                            ->orWhere('recommended_repairs', 'like', "%$search%")
+                            ->orWhereHas('consultation.motorcycle', function ($motorcycleQuery) use ($search) {
+                                // Let them search by the bike model or plate number too!
+        
+                                $motorcycleQuery->where('model', 'like', "%{$search}%")
+                                    ->orWhere('plate_number', 'like', "%{$search}");
+                            });
+                    });
+                });
+
+            $reports = $query->latest()->paginate(10);
+
+            return response()->json([
+                'message' => 'Diagnostic Reports Retrieved Successfully',
+                'data' => $reports,
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Diagnostic Report Index Error' . $e->getMessage());
+
+            return response()->json([
+                'message' => 'Failed to Retrieve Diagnostic Reports',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
     }
 
     /**
@@ -30,7 +80,7 @@ class DiagnosticReportController extends Controller
             'findings' => 'required|string',
             'recommended_repairs' => 'nullable|string',
             'severity' => 'required|in:minor,moderate,urgent',
-            'status' => 'required|in:draft,issued', 
+            'status' => 'required|in:draft,issued',
         ]);
 
         DB::beginTransaction();
@@ -85,13 +135,34 @@ class DiagnosticReportController extends Controller
      */
     public function show(string $id)
     {
-        $report = DiagnosticReport::with(['consultation.userMotorcycle', 'mechanic.user', 'maintenanceLogs'])->find($id);
-        
-        if (!$report) {
-            return response()->json(['message' => 'Diagnostic report not found'], 404);
+        $user = auth()->user();
+        //Find the Report and eager load necessary relationships
+        try {
+            $report = DiagnosticReport::with(['consultation.userMotorcycle', 'mechanic.user', 'maintenanceLogs'])->find($id);
+
+            if (!$report) {
+                return response()->json(['message' => 'Diagnostic report not found'], 404);
+            }
+            $isOwner = $report->consultation->user_id === $user->id;
+
+            // Is the current user the assigned mechanic?
+            $isAssignedMechanic = $user->mechanic && $report->mechanic_id === $user->mechanic->id;
+            if (!$isOwner && !$isAssignedMechanic) {
+                return response()->json([
+                    'message' => 'Unauthorized. You do not have access to this Diagnostic Report.'
+                ], 403);
+            }
+            return response()->json([
+                'message' => 'Diagnostic Report Details Retrieved',
+                'data' => $report
+            ], 200);
+        } catch (Exception $e) {
+            Log::error("Diagnostic Report Show Error [ID: {$id}]: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to retrieve Diagnostic Report',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+            ], 500);
         }
-        
-        return response()->json($report);
     }
 
     /**
@@ -166,16 +237,16 @@ class DiagnosticReportController extends Controller
 
         try {
             $report->delete(); // This will soft delete based on the schema you provided earlier
-            
+
             DB::commit();
             return response()->json(['message' => 'Diagnostic Report Successfully Deleted'], 200);
-            
+
         } catch (Exception $e) {
             DB::rollBack();
             Log::error("Delete Diagnostic Report Error: " . $e->getMessage());
-            
+
             return response()->json([
-                'message' => 'Delete Diagnostic Report Failed', 
+                'message' => 'Delete Diagnostic Report Failed',
                 'error' => $e->getMessage()
             ], 500);
         }
