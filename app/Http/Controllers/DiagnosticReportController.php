@@ -247,7 +247,7 @@ class DiagnosticReportController extends Controller
 
             return response()->json([
                 'message' => 'Delete Diagnostic Report Failed',
-                'error' => $e->getMessage()
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
     }

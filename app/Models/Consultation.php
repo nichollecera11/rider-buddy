@@ -4,11 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Consultation extends Model
 {
     /** @use HasFactory<\Database\Factories\ConsultationFactory> */
     use HasFactory;
+
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'user_id',
@@ -64,5 +68,40 @@ class Consultation extends Model
     public function diagnosticReport()
     {
         return $this->hasOne(DiagnosticReport::class);
+    }
+
+    public function attachMedia(Request $request): void
+    {
+        foreach (['images' => 'image', 'videos' => 'video'] as $input => $type) {
+            foreach ($request->file($input, []) as $file) {
+                $this->media()->create([
+                    'file_path' => $file->store('consultation/media', 'public'),
+                    'file_type' => $type,
+                ]);
+            }
+        }
+    }
+
+    public function verifyOtp(string $input)
+    {
+        if ($input !== $this->verification_otp) {
+            return [false, 'Invalid OTP code. Verification Failed'];
+        }
+        //temporary revert back to 2 minutes, this is only for testing in postman
+        if ($this->updated_at->diffInMinutes(now()) > 2) {
+            return [false, 'QR Code Expired, Rider Needs to Refresh the QR'];
+        }
+        return [true, null];
+    }
+
+    public function isCancellable(): bool
+    {
+        return $this->status === 'pending';
+    }
+
+    public function cancel(): void
+    {
+        $this->media()->delete(); // soft-deletes media rows if ConsultationMedia uses SoftDeletes too
+        $this->delete(); // soft-deletes the consultation
     }
 }
