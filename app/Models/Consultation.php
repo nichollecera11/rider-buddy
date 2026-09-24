@@ -104,4 +104,8 @@ class Consultation extends Model
         $this->media()->delete(); // soft-deletes media rows if ConsultationMedia uses SoftDeletes too
         $this->delete(); // soft-deletes the consultation
     }
+    // 9/24/2026
+    public function isAssignedMechanic(User $user): bool {
+        return $this->mechanic && $this->mechanic->user_id === $user->id;
+    }
 }

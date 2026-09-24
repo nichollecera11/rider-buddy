@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreDiagnosticReportRequest;
 use App\Models\Consultation;
 use App\Models\DiagnosticReport;
 use Exception;
@@ -50,7 +51,7 @@ class DiagnosticReportController extends Controller
                                 // Let them search by the bike model or plate number too!
         
                                 $motorcycleQuery->where('model', 'like', "%{$search}%")
-                                    ->orWhere('plate_number', 'like', "%{$search}");
+                                    ->orWhere('plate_number', 'like', "%{$search}%");
                             });
                     });
                 });
@@ -74,46 +75,28 @@ class DiagnosticReportController extends Controller
     /**
      * Store a newly created diagnostic report.
      */
-    public function store(Request $request, $consultationId)
+    public function store(StoreDiagnosticReportRequest $request, Consultation $consultation)
     {
-        $fields = $request->validate([
-            'findings' => 'required|string',
-            'recommended_repairs' => 'nullable|string',
-            'severity' => 'required|in:minor,moderate,urgent',
-            'status' => 'required|in:draft,issued',
-        ]);
-
+        if (!$consultation->isAssignedMechanic(auth()->user())) {
+            return response()->json([
+                'message' => 'Unauthorized, Only the assigned Mechanic can issue this report'
+            ], 403);
+        }
+        if ($consultation->diagnosticReport()->exists()) {
+            return response()->json([
+                'message' => 'A diagnostic report already exists for this consultation.'
+            ], 422);
+        }
         DB::beginTransaction();
-
         try {
-            $consultation = Consultation::with('mechanic')->findOrFail($consultationId);
-
-            // Security Check: Only the assigned mechanic can write the report.
-            // Note: consultation->mechanic_id is the mechanic profile ID, so we check the user_id of that profile.
-            if ($consultation->mechanic->user_id !== auth()->id()) {
-                return response()->json([
-                    'message' => 'Unauthorized. Only the assigned mechanic can issue this report.'
-                ], 403);
-            }
-
-            // Prevent duplicate reports for a single consultation
-            if ($consultation->diagnosticReport()->exists()) {
-                return response()->json([
-                    'message' => 'A diagnostic report already exists for this consultation.'
-                ], 422);
-            }
 
             $report = $consultation->diagnosticReport()->create([
                 'mechanic_id' => $consultation->mechanic_id,
-                'findings' => $fields['findings'],
-                'recommended_repairs' => $fields['recommended_repairs'] ?? null,
-                'severity' => $fields['severity'],
-                'status' => $fields['status'],
-                'issued_at' => $fields['status'] === 'issued' ? now() : null,
+                ...$request->validated(),
+                'issued_at' => $request->status === 'issued' ? now() : null,
+
             ]);
-
             DB::commit();
-
             return response()->json([
                 'message' => 'Diagnostic report created successfully',
                 'data' => $report->load(['consultation', 'mechanic.user'])
@@ -133,31 +116,18 @@ class DiagnosticReportController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(DiagnosticReport $report)
     {
-        $user = auth()->user();
-        //Find the Report and eager load necessary relationships
+        $this->authorize('view', $report);
+
         try {
-            $report = DiagnosticReport::with(['consultation.userMotorcycle', 'mechanic.user', 'maintenanceLogs'])->find($id);
-
-            if (!$report) {
-                return response()->json(['message' => 'Diagnostic report not found'], 404);
-            }
-            $isOwner = $report->consultation->user_id === $user->id;
-
-            // Is the current user the assigned mechanic?
-            $isAssignedMechanic = $user->mechanic && $report->mechanic_id === $user->mechanic->id;
-            if (!$isOwner && !$isAssignedMechanic) {
-                return response()->json([
-                    'message' => 'Unauthorized. You do not have access to this Diagnostic Report.'
-                ], 403);
-            }
+            $report->load(['consultation.userMotorcycle', 'mechanic.user', 'maintenanceLogs']);
             return response()->json([
                 'message' => 'Diagnostic Report Details Retrieved',
                 'data' => $report
             ], 200);
         } catch (Exception $e) {
-            Log::error("Diagnostic Report Show Error [ID: {$id}]: " . $e->getMessage());
+            Log::error("Diagnostic Report Show Error [ID: {$report->id}]: " . $e->getMessage());
             return response()->json([
                 'message' => 'Failed to retrieve Diagnostic Report',
                 'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'

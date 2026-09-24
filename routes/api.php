@@ -61,6 +61,7 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     // Diagnostic Reports (Shallow Nested Resource)
     Route::apiResource('consultations.diagnostic-reports', DiagnosticReportController::class)->shallow();
+
 });
 
 
