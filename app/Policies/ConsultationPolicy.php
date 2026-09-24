@@ -21,7 +21,7 @@ class ConsultationPolicy
      */
     public function view(User $user, Consultation $consultation): bool
     {
-        return false;
+        return $consultation->user_id === $user->id || ($user->mechanic && $consultation->mechanic_id === $user->mechanic->id);
     }
 
     /**

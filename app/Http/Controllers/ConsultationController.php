@@ -117,19 +117,11 @@ class ConsultationController extends Controller
      */
     public function show(Consultation $consultation)
     {
-        $user = auth()->user();
+
+
+        $this->authorize('view', $consultation);
 
         try {
-            $isOwner = $consultation->user_id === $user->id;
-            $isAssignedMechanic = $user->mechanic && $consultation->mechanic_id === $user->mechanic->id;
-
-            if (!$isOwner && !$isAssignedMechanic) {
-                return response()->json([
-                    'message' => 'Unauthorized. You do not have access to this consultation'
-                ], 403);
-            }
-
-            //Eager Loading using of Model Binding Technique HAHAHA
             $consultation->load(['user', 'mechanic.user', 'motorcycle', 'media']);
 
             return response()->json([
