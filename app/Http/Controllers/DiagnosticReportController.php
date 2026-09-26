@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreDiagnosticReportRequest;
+use App\Http\Requests\UpdateDiagnosticReportRequest;
 use App\Models\Consultation;
 use App\Models\DiagnosticReport;
 use Exception;
@@ -116,18 +117,18 @@ class DiagnosticReportController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(DiagnosticReport $report)
+    public function show(DiagnosticReport $diagnostic_report)
     {
-        $this->authorize('view', $report);
+        $this->authorize('view', $diagnostic_report);
 
         try {
-            $report->load(['consultation.userMotorcycle', 'mechanic.user', 'maintenanceLogs']);
+            $diagnostic_report->load(['consultation.userMotorcycle', 'mechanic.user', 'maintenanceLogs']);
             return response()->json([
                 'message' => 'Diagnostic Report Details Retrieved',
-                'data' => $report
+                'data' => $diagnostic_report
             ], 200);
         } catch (Exception $e) {
-            Log::error("Diagnostic Report Show Error [ID: {$report->id}]: " . $e->getMessage());
+            Log::error("Diagnostic Report Show Error [ID: {$diagnostic_report->id}]: " . $e->getMessage());
             return response()->json([
                 'message' => 'Failed to retrieve Diagnostic Report',
                 'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
@@ -138,43 +139,25 @@ class DiagnosticReportController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(UpdateDiagnosticReportRequest $request, DiagnosticReport $diagnostic_report)
     {
-        $report = DiagnosticReport::with('mechanic')->find($id);
-
-        if (!$report) {
-            return response()->json(['message' => 'Diagnostic report not found'], 404);
-        }
-
-        // Security Check for user update only
-        if ($report->mechanic->user_id !== auth()->id()) {
-            return response()->json([
-                'message' => 'Unauthorized user profile'
-            ], 403);
-        }
-
-        $fields = $request->validate([
-            'findings' => 'sometimes|required|string',
-            'recommended_repairs' => 'nullable|string',
-            'severity' => 'sometimes|required|in:minor,moderate,urgent',
-            'status' => 'sometimes|required|in:draft,issued',
-        ]);
+        $this->authorize('update', $diagnostic_report);
 
         DB::beginTransaction();
-
         try {
-            // Automatically stamp 'issued_at' if the status is being flipped from draft to issued
-            if (isset($fields['status']) && $fields['status'] === 'issued' && !$report->issued_at) {
+            $fields = $request->validated();
+
+            if (isset($fields['status']) && $fields['status'] === 'issued' && !$diagnostic_report->issued_at) {
                 $fields['issued_at'] = now();
             }
 
-            $report->update($fields);
+            $diagnostic_report->update($fields);
 
             DB::commit();
 
             return response()->json([
                 'message' => 'Diagnostic Report Updated Successfully',
-                'data' => $report
+                'data' => $diagnostic_report
             ], 200);
 
         } catch (Exception $e) {
@@ -191,22 +174,14 @@ class DiagnosticReportController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(DiagnosticReport $diagnostic_report)
     {
-        $report = DiagnosticReport::with('mechanic')->find($id);
-
-        if (!$report) {
-            return response()->json(['message' => 'Diagnostic report not found'], 404);
-        }
-
-        if ($report->mechanic->user_id !== auth()->id()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        $this->authorize('delete', $diagnostic_report);
 
         DB::beginTransaction();
 
         try {
-            $report->delete(); // This will soft delete based on the schema you provided earlier
+            $diagnostic_report->delete(); // This will soft delete based on the schema you provided earlier
 
             DB::commit();
             return response()->json(['message' => 'Diagnostic Report Successfully Deleted'], 200);
