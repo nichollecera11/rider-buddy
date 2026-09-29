@@ -122,7 +122,7 @@ class DiagnosticReportController extends Controller
         $this->authorize('view', $diagnostic_report);
 
         try {
-            $diagnostic_report->load(['consultation.userMotorcycle', 'mechanic.user', 'maintenanceLogs']);
+            $diagnostic_report->load(['consultation.motorcycle', 'mechanic.user', 'maintenanceLogs']);
             return response()->json([
                 'message' => 'Diagnostic Report Details Retrieved',
                 'data' => $diagnostic_report

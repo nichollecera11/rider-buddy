@@ -19,12 +19,13 @@ class UpdateDiagnosticReportRequest extends FormRequest
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
-    public function rules(): array {
-    return [
-        'findings' => 'sometimes'|'required|string',
-        'recommended_repairs' => 'sometimes'|'nullable|string',
-        'severity' => 'sometimes'|'required|in:minor,moderate,urgent',
-        'status' => 'sometimes'|'required|in:draft,issued',
-    ];
-}
+    public function rules(): array
+    {
+        return [
+            'findings' => 'sometimes|required|string',
+            'recommended_repairs' => 'nullable|string',
+            'severity' => 'sometimes|required|in:minor,moderate,urgent',
+            'status' => 'sometimes|required|in:draft,issued',
+        ];
+    }
 }
