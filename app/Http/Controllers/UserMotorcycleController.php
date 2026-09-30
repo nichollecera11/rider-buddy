@@ -69,23 +69,25 @@ class UserMotorcycleController extends Controller
             $fields['user_id'] = auth()->id();
             if ($request->is_main) {
                 UserMotorcycle::where('user_id', auth()->id())->update(['is_main' => false]);
-
-                $motorcycle = UserMotorcycle::create($fields);
-                DB::commit();
-
-                return response()->json([
-                    'message' => 'Motorcycle added to garage successfully',
-                    'data' => $motorcycle->load('brand')
-                ], 201);
             }
+            $motorcycle = UserMotorcycle::create($fields);
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Motorcycle added to garage successfully',
+                'data' => $motorcycle->load('brand')
+            ], 201);
+
         } catch (Exception $e) {
             DB::rollBack();
             Log::error("UserMotorcycle Store Error: " . $e->getMessage());
             return response()->json([
                 'message' => 'Failed to add Motorcycle',
                 'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
-            ]);
+            ], 500);
         }
+
+
     }
 
     /**

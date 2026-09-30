@@ -28,7 +28,7 @@ class UserMotorcycle extends Model
     'is_main',
     'is_active',
     //verification for odometer and last registration
-    'verification_photo'
+    // 'verification_photo'
 ];
 
     // Ang tag-iya sa motor
