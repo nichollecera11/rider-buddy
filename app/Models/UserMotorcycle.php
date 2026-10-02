@@ -51,4 +51,15 @@ class UserMotorcycle extends Model
     public function media(){
         return $this->hasMany(UserMotorcycleMedia::class);
     }
+
+    public function setAsMain(): void 
+    {
+        static::where('user_id', $this->user_id)
+        ->where('id', '!=', $this->id)
+        ->update(['is_main' => false]);
+
+        $this->is_main = true;
+    }
+
+    
 }

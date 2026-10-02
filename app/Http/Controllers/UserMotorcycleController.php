@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreUserMotorcycleRequest;
+use App\Http\Requests\UpdateUserMotorcycleRequest;
 use Exception;
 use App\Models\UserMotorcycle;
 use Illuminate\Http\Request;
@@ -36,36 +38,14 @@ class UserMotorcycleController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreUserMotorcycleRequest $request)
     {
-        $fields = $request->validate([
-            'brand_id' => 'required|exists:brands,id',
-            'model' => 'required|string|max:255',
-            'year_model' => 'nullable|string',
-            'plate_number' => 'required|string|unique:user_motorcycles,plate_number',
 
-            // Legal & Technical (Nullable para dili kapoyan si Nichol)
-            'engine_number' => 'nullable|string|unique:user_motorcycles,engine_number',
-            'chassis_number' => 'nullable|string|unique:user_motorcycles,chassis_number',
-            'engine_capacity' => 'nullable|integer',
-
-            // 🚀 THE SYNC: Gamit tag underscore para match sa standard
-            'transmission' => 'nullable|in:manual,automatic,semi_automatic,none_electric',
-            'fuel_type' => 'nullable|in:gasoline,electric',
-            'color' => 'nullable|string',
-
-            // 🚀 THE MISSING BUTLER FIELDS:
-            'last_registration_date' => 'nullable|date',
-            'insurance_expiry' => 'nullable|date',
-
-            // Metrics & Status
-            'current_odometer' => 'nullable|integer',
-            'is_main' => 'boolean',
-            'is_active' => 'boolean'
-        ]);
+    $this->authorize('create', UserMotorcycle::class);
 
         DB::beginTransaction();
         try {
+            $fields = $request->validated();
             $fields['user_id'] = auth()->id();
             if ($request->is_main) {
                 UserMotorcycle::where('user_id', auth()->id())->update(['is_main' => false]);
@@ -86,8 +66,6 @@ class UserMotorcycleController extends Controller
                 'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
-
-
     }
 
     /**
@@ -119,37 +97,14 @@ class UserMotorcycleController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, UserMotorcycle $userMotorcycle)
+    public function update(UpdateUserMotorcycleRequest $request,  UserMotorcycle $userMotorcycle)
     {
-        if ($userMotorcycle->user_id !== auth()->id()) {
-            return response()->json([
-                'message' => 'Unauthorized'
-            ], 403);
-        }
-        $fields = $request->validate([
-            'brand_id' => 'required|exists:brands,id',
-            'model' => 'required|string|max:255',
-            'year_model' => 'nullable|digits:4',
-            'plate_number' => 'required|string|unique:user_motorcycles,plate_number,' . $userMotorcycle->id,
-            'engine_number' => 'nullable|string|unique:user_motorcycles,engine_number,' . $userMotorcycle->id,
-            'chassis_number' => 'nullable|string|unique:user_motorcycles,chassis_number,' . $userMotorcycle->id,
-            'transmission' => 'nullable|in:manual,automatic,semi_automatic,none_electric',
-            'fuel_type' => 'nullable|in:gasoline,electric',
-            'color' => 'nullable|string',
-            'last_registration_date' => 'nullable|date',
-            'insurance_expiry' => 'nullable|date',
-            'current_odometer' => 'nullable|integer',
-            'is_main' => 'boolean',
-            'is_active' => 'boolean'
-        ]);
-        if ($request->hasAny(['current_odometer', 'last_registration_date'])) {
-            $request->validate([
-                'verification_photo' => 'required|image|max:2048'
-            ]);
-        }
+        $this->authorize('update', $userMotorcycle);
 
         DB::beginTransaction();
         try {
+            $fields = $request->validated();
+            
             if ($request->is_main) {
                 UserMotorcycle::where('user_id', auth()->id())
                     ->where('id', '!=', $userMotorcycle->id)->update(['is_main' => false]);
