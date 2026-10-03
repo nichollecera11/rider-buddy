@@ -41,7 +41,7 @@ class UserMotorcycleController extends Controller
     public function store(StoreUserMotorcycleRequest $request)
     {
 
-    $this->authorize('create', UserMotorcycle::class);
+        $this->authorize('create', UserMotorcycle::class);
 
         DB::beginTransaction();
         try {
@@ -97,14 +97,14 @@ class UserMotorcycleController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateUserMotorcycleRequest $request,  UserMotorcycle $userMotorcycle)
+    public function update(UpdateUserMotorcycleRequest $request, UserMotorcycle $userMotorcycle)
     {
         $this->authorize('update', $userMotorcycle);
 
         DB::beginTransaction();
         try {
             $fields = $request->validated();
-            
+
             if ($request->is_main) {
                 UserMotorcycle::where('user_id', auth()->id())
                     ->where('id', '!=', $userMotorcycle->id)->update(['is_main' => false]);
@@ -139,12 +139,10 @@ class UserMotorcycleController extends Controller
      */
     public function destroy(UserMotorcycle $userMotorcycle)
     {
+
+        $this->authorize('delete', $userMotorcycle);
+
         try {
-            if ($userMotorcycle->user_id !== auth()->id()) {
-                return response()->json([
-                    'message' => 'Unauthorized'
-                ], 403);
-            }
             $userMotorcycle->delete();
             return response()->json([
                 'message' => 'Motorcycle Deleted Successfully',
