@@ -18,6 +18,7 @@ use App\Http\Controllers\UserMotorcycleController;
 use App\Http\Controllers\ConsultationMediaController;
 use App\Http\Controllers\LTOComplianceController;
 use App\Http\Controllers\DiagnosticReportController;
+use App\Http\Controllers\MaintenanceLogController;
 
 
 
@@ -61,7 +62,7 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     // Diagnostic Reports (Shallow Nested Resource)
     Route::apiResource('consultations.diagnostic-reports', DiagnosticReportController::class)->shallow();
-
+    Route::apiResource('maintenance-logs', MaintenanceLogController::class);
 });
 
 

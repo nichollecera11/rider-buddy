@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreMaintenanceLogRequest;
 use App\Models\MaintenanceLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -59,17 +60,12 @@ class MaintenanceLogController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreMaintenanceLogRequest $request)
     {
 
+        $this->authorize('create', MaintenanceLog::class);
 
-        $fields = $request->validate([
-            'consultation_id' => 'required|exists:consultations,id',
-            'service_type' => 'required|string',
-            'description' => 'nullable|string',
-            'odometer_reading' => 'required|integer|min:0',
-            'cost' => 'nullable|integer|min:0',
-        ]);
+        $fields = $request->validated();
 
         $consultation = Consultation::findOrFail($fields['consultation_id']);
         $mechanic = auth()->user()->mechanic;
@@ -77,7 +73,7 @@ class MaintenanceLogController extends Controller
         if (!$mechanic || $consultation->mechanic_id !== $mechanic->id) {
             return response()->json([
                 'message' => 'Unauthorized. Please contact your administrator'
-            ]);
+            ], 403);
         }
 
         if ($consultation->status !== 'ongoing') {
@@ -95,7 +91,7 @@ class MaintenanceLogController extends Controller
                 'description' => $fields['description'],
                 'odometer_reading' => $fields['odometer_reading'],
                 'service_date' => now(),
-                'cost' => $fields['costs'],
+                'cost' => $fields['cost'],
                 'is_verified_by_mechanic' => true
 
             ]);
@@ -103,7 +99,7 @@ class MaintenanceLogController extends Controller
             $consultation->update([
                 'status' => 'completed',
                 'payment_status' => 'paid',
-                'estimated_repair_costs' => $fields['costs']
+                'estimated_repair_costs' => $fields['cost']
             ]);
             DB::commit();
             return response()->json([
@@ -127,7 +123,22 @@ class MaintenanceLogController extends Controller
      */
     public function show(MaintenanceLog $maintenanceLog)
     {
-        //
+        $this->authorize('view', $maintenanceLog);
+
+        try {
+            $maintenanceLog->load('motorcycle.brand', 'mechanic.user', 'diagnosticReport');
+            return response()->json([
+                'message' => 'Maintenance Log Retrieved Succesfully',
+                'data' => $maintenanceLog
+            ], 200);
+
+        } catch (Exception $e) {
+            Log::error("Maintenance Log Error [ID: {$maintenanceLog->id}]: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to Retrieve Maintenance Log',
+                'error' => env('APP.DEBUG') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
     }
 
     /**
