@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreMaintenanceLogRequest;
+use App\Http\Requests\UpdateMaintenanceLogRequest;
 use App\Models\MaintenanceLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -152,37 +153,53 @@ class MaintenanceLogController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, MaintenanceLog $maintenanceLog)
+    public function update(UpdateMaintenanceLogRequest $request, MaintenanceLog $maintenanceLog)
     {
-        //
+        $this->authorize('update', $maintenanceLog);
+        DB::beginTransaction();
+        try {
+            $maintenanceLog->update($request->validated());
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Maintenance Log Update Successfully',
+                'data' => $maintenanceLog->load(['motorcycle.brand', 'mechanic.user'])
+            ], 200);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error("Maintenance Log Update Error: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to Update Maintenance Log',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy($id)
+    public function destroy(MaintenanceLog $maintenanceLog)
     {
-        $log = MaintenanceLog::find($id);
+        $this->authorize('delete', $maintenanceLog);
 
-        if (!$log) {
+        if (!$maintenanceLog) {
             return response()->json([
                 'message' => 'Maintenance Log not Found'
             ], 404);
-
         }
         if (auth()->user()->role !== 'admin') {
             return response()->json([
                 'message' => 'Unauthorized, Only Administrator Can Delete Maintenance Logs'
             ], 403);
-
         }
 
         DB::beginTransaction();
         try {
-            $log->delete();
+            $maintenanceLog->delete();
             DB::commit();
             return response()->json([
-                'message' => 'Service Record Sucessfully Deleted'
+                'message' => 'Service Record Successfully Deleted'
             ], 200);
         } catch (Exception $e) {
             DB::rollBack();

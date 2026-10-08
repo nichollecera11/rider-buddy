@@ -45,7 +45,7 @@ class MaintenanceLogPolicy
      */
     public function delete(User $user, MaintenanceLog $maintenanceLog): bool
     {
-        return $user->role === 'admin';
+        return $user->isAdmin();
     }
 
     /**
