@@ -48,7 +48,7 @@ class LTOComplianceController extends Controller
                 $file = $request->file('file');
                 $filename = time() . '_' . $file->getClientOriginalName();
 
-                $path = $request->file('file')->store('lto_docs','private');
+                $path = $request->file('file')->store('lto_docs', 'private');
 
                 $lto = LTOCompliance::create([
                     'user_motorcycle_id' => $userMotorcycle->id,
@@ -116,35 +116,17 @@ class LTOComplianceController extends Controller
         //
     }
 
-    public function showImage($id)
+    public function showImage(LTOCompliance $ltoCompliance)
     {
-        $lto = LTOCompliance::with('user_motorcycle')->findOrFail($id);
-        $user = auth()->user();
-        //strict security
-        $isOwner = $user->id === $lto->user_motorcycle->user_id;
-        $isAdmin = $user->role === 'admin';
+        $this->authorize('view', $ltoCompliance);
 
-        if (!$isOwner && !$isAdmin) {
-            Log::warning("Unauthorized attempt on LTO image ID: {$id} by User ID:" . auth()->id());
-            return response()->json([
-                'message' => 'Unauthorized Access'
-            ], 403);
-        }
-        if (!$lto->file_path || !Storage::disk('private')->exists($lto->file_path)) {
-            return response()->json([
-                'message' => 'Image not Found'
-            ], 404);
-        }
-        $path = Storage::disk('private')->path($lto->file_path);
-        return response()->file($path);
+        $media = $ltoCompliance->media()->where('document_type', 'OR_CR')->first();
 
-        if (!$lto->file_path || !Storage::disk('private')->exists($lto->file_path)) {
-            return response()->json([
-                'message' => 'Image Not Found'
-            ], 404);
+        if (!$media || !Storage::disk('private')->exists($media->file_path)) {
+            return response()->json(['message' => 'Image not found'], 404);
         }
-        $path = Storage::disk('private')->path($lto->file_path);
-        return response()->file($path);
+
+        return response()->file(Storage::disk('private')->path($media->file_path));
     }
 
     //Admin Verification
@@ -153,9 +135,9 @@ class LTOComplianceController extends Controller
     {
         $this->authorize('verify', $ltoCompliance);
 
-        if(!$ltoCompliance->isPending()){
+        if (!$ltoCompliance->isPending()) {
             return response()->json([
-                'message'=> 'This LTO Record was already ' . $ltoCompliance->status
+                'message' => 'This LTO Record was already ' . $ltoCompliance->status
             ], 409);
         }
 
@@ -182,23 +164,24 @@ class LTOComplianceController extends Controller
             Log::error("LTO Verify Error: " . $e->getMessage());
             return response()->json([
                 'message' => 'Something went wrong while updating the status.',
-                'error' => env('APP_DEBUG')  ? $e->getMessage() : 'Server Error'
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
     }
 
     public function listpending()
-{
-    $this->authorize('viewAny', LTOCompliance::class);
+    {
+        $this->authorize('viewAny', LTOCompliance::class);
 
-    $pending = LTOCompliance::with('user_motorcycle.user')
-        ->where('status', 'pending')
-        ->latest()
-        ->paginate(10);
+        $pending = LTOCompliance::with('user_motorcycle.user')
+            ->where('status', 'pending')
+            ->latest()
+            ->paginate(10);
 
-    return response()->json([
-        'message' => 'Pending LTO records retrieved',
-        'data' => $pending
-    ], 200);
-}
+        return response()->json([
+            'message' => 'Pending LTO records retrieved',
+            'data' => $pending
+        ], 200);
+    }
+
 }

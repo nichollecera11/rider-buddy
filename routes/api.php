@@ -85,7 +85,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     // Listahan sa tanang pending para ma-review sa admin
     Route::get('/lto-compliance/pending', [LTOComplianceController::class, 'listpending']);
     // Proxy route para sa private images
-    Route::get('/lto-compliance/image/{id}', [LTOComplianceController::class, 'showImage']);
+    Route::get('/lto-compliance/{lto_compliance}/image', [LTOComplianceController::class, 'showImage']);
     //Admin Verification (Approve/Reject)
     Route::patch('/lto-compliance/{lto_compliance}/verify', [LTOComplianceController::class, 'verify']);
 });
