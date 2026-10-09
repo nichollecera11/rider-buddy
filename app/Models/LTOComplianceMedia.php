@@ -17,7 +17,7 @@ class LTOComplianceMedia extends Model
 
     public function lto_compliance()
     {
-        return $this->belongsTo(LTOCompliance::class);
+        return $this->belongsTo(LTOCompliance::class, 'l_t_o_compliance_id');
     }
     
 }

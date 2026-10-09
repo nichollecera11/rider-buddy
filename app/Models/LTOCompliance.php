@@ -22,8 +22,8 @@ class LTOCompliance extends Model
         'rejection_reason',
         'remarks',
         'verified_by',
-        'verified_at',
-        
+        'verified_at' => 'datetime'
+
     ];
 
     protected $casts = [
@@ -31,17 +31,24 @@ class LTOCompliance extends Model
         'verified_at' => 'date'
     ];
 
-    public function verifier() {
+    public function verifier()
+    {
         return $this->belongsTo(User::class, 'verified_by');
     }
-    public function user_motorcycle() {
+    public function user_motorcycle()
+    {
         return $this->belongsTo(UserMotorcycle::class, 'user_motorcycle_id');
     }
     // public function media(): HasMany {
     //     return $this->hasMany(UserMotorcycleMedia::class, 'user_motorcycle_id', 'user_motorcycle_id');
     // }
 
-    public function media () {
+    public function media()
+    {
         return $this->hasMany(LTOComplianceMedia::class);
+    }
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
     }
 }

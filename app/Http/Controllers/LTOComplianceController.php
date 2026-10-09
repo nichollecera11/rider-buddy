@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreLTOComplianceRequest;
+use App\Http\Requests\VerifyLTOComplianceRequest;
 use App\Models\LTOCompliance;
 use App\Models\UserMotorcycle;
 use Exception;
@@ -31,25 +33,11 @@ class LTOComplianceController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request, $motorcycle_id)
+    public function store(StoreLTOComplianceRequest $request, UserMotorcycle $userMotorcycle)
     {
-        $user_motorcycle = UserMotorcycle::where('id', $motorcycle_id)->where('user_id', auth()->id())->first();
-
-        if (!$user_motorcycle) {
-            return response()->json([
-                'message' => 'Motorcycle not found'
-            ], 404);
-        }
-        $fields = $request->validate([
-            // Kinahanglan unique ni sila sa l_t_o_compliances table para anti-fraud
-            'plate_number' => 'required|string|unique:l_t_o_compliances,plate_number',
-            'engine_number' => 'required|string|unique:l_t_o_compliances,engine_number',
-            'chassis_number' => 'required|string|unique:l_t_o_compliances,chassis_number',
-            'registration_expiry' => 'required|date|after:today',
-
-            // Ang OR/CR photo/file
-            'file' => 'required|image|mimes:jpeg,png,jpg|max:2048',
-        ]);
+        $this->authorize('create', [LTOCompliance::class, $userMotorcycle]);
+        $fields = $request->validated();
+        $path = null;
 
         DB::beginTransaction();
 
@@ -60,10 +48,10 @@ class LTOComplianceController extends Controller
                 $file = $request->file('file');
                 $filename = time() . '_' . $file->getClientOriginalName();
 
-                $path = $file->storeAs('lto_docs', $filename, 'private');
+                $path = $request->file('file')->store('lto_docs','private');
 
                 $lto = LTOCompliance::create([
-                    'user_motorcycle_id' => $user_motorcycle->id,
+                    'user_motorcycle_id' => $userMotorcycle->id,
                     'plate_number' => $fields['plate_number'],
                     'engine_number' => $fields['engine_number'],
                     'chassis_number' => $fields['chassis_number'],
@@ -71,7 +59,7 @@ class LTOComplianceController extends Controller
                     'status' => 'pending',
                 ]);
 
-                $lto->media->create([
+                $lto->media()->create([
                     'file_path' => $path,
                     'document_type' => 'OR_CR',
                 ]);
@@ -161,21 +149,24 @@ class LTOComplianceController extends Controller
 
     //Admin Verification
 
-    public function verify(Request $request, $id)
+    public function verify(VerifyLTOComplianceRequest $request, LTOCompliance $ltoCompliance)
     {
-        $request->validate([
-            'status' => 'required|in:approved,rejected',
-            'rejection_reason' => 'required_if:status,rejected|string|nullable',
-            'remarks' => 'string|nullable'
-        ]);
+        $this->authorize('verify', $ltoCompliance);
+
+        if(!$ltoCompliance->isPending()){
+            return response()->json([
+                'message'=> 'This LTO Record was already ' . $ltoCompliance->status
+            ], 409);
+        }
 
         DB::beginTransaction();
         try {
-            $lto = LTOCompliance::findOrFail($id);
-            $lto->update([
-                'status' => $request->status,
-                'rejection_reason' => $request->status === 'rejected' ? $request->rejection_reason : null,
-                'remarks' => $request->remarks,
+            $fields = $request->validated();
+
+            $ltoCompliance->update([
+                'status' => $fields['status'],
+                'rejection_reason' => $fields['status'] === 'rejected' ? $request->rejection_reason : null,
+                'remarks' => $fields['remarks'] ?? null,
                 'verified_by' => auth()->id(), //admin na nag verify
                 'verified_at' => now(),
             ]);
@@ -183,29 +174,31 @@ class LTOComplianceController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => "LTO Compliance status updated to {$request->status}.",
-                'data' => $lto
-            ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'LTO Record not found'
-            ], 404);
+                'message' => "LTO Compliance status updated to {$fields['status']}.",
+                'data' => $ltoCompliance
+            ], 200);
         } catch (Exception $e) {
             DB::rollBack();
-            Log::error("Admin Verification Error: " . $e->getMessage());
+            Log::error("LTO Verify Error: " . $e->getMessage());
             return response()->json([
-                'status' => 'error',
                 'message' => 'Something went wrong while updating the status.',
-                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+                'error' => env('APP_DEBUG')  ? $e->getMessage() : 'Server Error'
             ], 500);
         }
     }
 
     public function listpending()
-    {
-        $pending = LTOCompliance::with('user_motorcycle.user')->where('status', 'pending')->get();
+{
+    $this->authorize('viewAny', LTOCompliance::class);
 
-        return response()->json($pending);
-    }
+    $pending = LTOCompliance::with('user_motorcycle.user')
+        ->where('status', 'pending')
+        ->latest()
+        ->paginate(10);
+
+    return response()->json([
+        'message' => 'Pending LTO records retrieved',
+        'data' => $pending
+    ], 200);
+}
 }
