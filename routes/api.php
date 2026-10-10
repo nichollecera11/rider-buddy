@@ -62,6 +62,10 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     // Diagnostic Reports (Shallow Nested Resource)
     Route::apiResource('consultations.diagnostic-reports', DiagnosticReportController::class)->shallow();
     Route::apiResource('maintenance-logs', MaintenanceLogController::class);
+    Route::post('/lto-compliance/{user_motorcycle}', [LTOComplianceController::class, 'store']);
+    Route::get('/lto-compliance/{lto_compliance}/image', [LTOComplianceController::class, 'showImage']);
+    Route::get('/lto-compliance', [LTOComplianceController::class, 'index']);
+    Route::get('/lto-compliance/{lto_compliance}', [LTOComplianceController::class, 'show']);
 });
 
 
@@ -84,8 +88,6 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     // 4. Verification Actions (Real-life Rider Buddy features)
     // Listahan sa tanang pending para ma-review sa admin
     Route::get('/lto-compliance/pending', [LTOComplianceController::class, 'listpending']);
-    // Proxy route para sa private images
-    Route::get('/lto-compliance/{lto_compliance}/image', [LTOComplianceController::class, 'showImage']);
     //Admin Verification (Approve/Reject)
     Route::patch('/lto-compliance/{lto_compliance}/verify', [LTOComplianceController::class, 'verify']);
 });

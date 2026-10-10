@@ -19,7 +19,26 @@ class LTOComplianceController extends Controller
      */
     public function index()
     {
-        //
+        try {
+            $records = LTOCompliance::with('user_motorcycle.brand')
+                ->whereHas('user_motorcycle', function ($q) {
+                    $q->where('user_id', auth()->id());
+                })
+                ->latest()
+                ->get();
+
+            return response()->json([
+                'message' => 'LTO records retrieved successfully',
+                'count' => $records->count(),
+                'data' => $records
+            ], 200);
+        } catch (Exception $e) {
+            Log::error("LTO Index Error: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to retrieve LTO records',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
     }
 
     /**
@@ -87,9 +106,24 @@ class LTOComplianceController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(LTOCompliance $lTOCompliance)
+    public function show(LTOCompliance $ltoCompliance)
     {
-        //
+        $this->authorize('view', $ltoCompliance);
+
+        try {
+            $ltoCompliance->load('user_motorcycle.brand');
+
+            return response()->json([
+                'message' => 'LTO record retrieved successfully',
+                'data' => $ltoCompliance
+            ], 200);
+        } catch (Exception $e) {
+            Log::error("LTO Show Error [ID: {$ltoCompliance->id}]: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to retrieve LTO record',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
     }
 
     /**
