@@ -79,7 +79,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::apiResource('parts', PartController::class);
     // 2. Admin Reviews (Kini mo-generate og /api/admin/reviews)
     // Direkta na ni tanan: index, show, store, update, destroy para sa Admin
-    Route::apiResource('reviews', ReviewController::class);
+    Route::apiResource('reviews', ReviewController::class)->only(['index', 'show', 'destroy']);
     // Verification Routes
     Route::patch('/mechanics/{mechanic}/verify', [MechanicController::class, 'verify']);
     Route::patch('/sellers/{seller}/verify', [SellerController::class, 'verify']);

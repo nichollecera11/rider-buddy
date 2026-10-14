@@ -69,6 +69,15 @@ class Consultation extends Model
     {
         return $this->hasOne(DiagnosticReport::class);
     }
+    public function review()
+    {
+        return $this->hasOne(Review::class);
+    }
+
+    public function isReviewable(): bool
+    {
+        return $this->status === 'completed';
+    }
 
     public function attachMedia(Request $request): void
     {
@@ -105,7 +114,8 @@ class Consultation extends Model
         $this->delete(); // soft-deletes the consultation
     }
     // 9/24/2026
-    public function isAssignedMechanic(User $user): bool {
+    public function isAssignedMechanic(User $user): bool
+    {
         return $this->mechanic && $this->mechanic->user_id === $user->id;
     }
 }

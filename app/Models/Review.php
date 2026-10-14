@@ -20,7 +20,7 @@ class Review extends Model
     ];
 
     protected $casts = [
-        'rating' => 'decimal:1'
+        'rating' => 'integer',
     ];
 
     public function reviewable()
@@ -40,5 +40,9 @@ class Review extends Model
     public function consultation()
     {
         return $this->belongsTo(Consultation::class);
+    }
+    public function scopeVisible($query)
+    {
+        return $query->where('is_visible', true);
     }
 }
