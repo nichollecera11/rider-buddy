@@ -2,267 +2,248 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreMechanicRequest;
+use App\Http\Requests\UpdateMechanicRequest;
+use App\Models\Consultation;
 use App\Models\Mechanic;
 use Exception;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class MechanicController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    // Public route: no login, so never call auth()->user()->something here
     public function index(Request $request)
     {
-        $query = Mechanic::with(['user:id,name', 'media'])->withAvg('reviews', 'rating');
+        try {
+            $query = Mechanic::with(['user:id,name', 'media']);
 
-        if ($request->lat && $request->lng) {
-            $query->withDistance($request->lat, $request->lng)
-                ->having('distance', '<', 50) // 50km radius ra ang pakit-on
-                ->orderBy('distance', 'asc');
+            if ($request->lat && $request->lng) {
+                $query->withDistance($request->lat, $request->lng)
+                    ->having('distance', '<', 50)
+                    ->orderBy('distance', 'asc');
+            }
+
+            $query->when($request->search, function ($q, $search) {
+                $q->where(function ($inner) use ($search) {
+                    $inner->where('name', 'like', "%{$search}%")
+                        ->orWhere('address', 'like', "%{$search}%")
+                        ->orWhere('specialization', 'like', "%{$search}%")
+                        ->orWhere('shop_name', 'like', "%{$search}%");
+                });
+            })
+                ->when($request->min_exp, fn ($q, $exp) => $q->where('years_experience', '>=', $exp))
+                ->when($request->service_fee, fn ($q, $fee) => $q->where('service_fee_starts_at', '<=', $fee))
+                ->when($request->available, fn ($q) => $q->where('is_available', true))
+                ->when($request->is_24_7, fn ($q) => $q->where('is_24_7', true))
+                ->when($request->offers_towing, fn ($q) => $q->where('offers_towing', true))
+                ->when($request->emergency_vulcanizing, function ($q) {
+                    $q->where('specialization', 'like', '%Vulcanizing%')
+                        ->where('is_24_7', true)
+                        ->where('offers_towing', true);
+                });
+
+            $mechanics = $query->latest('id')->paginate(10)
+                ->through(fn ($m) => $m->makeHidden('emergency_contact'));
+
+            return response()->json([
+                'message' => 'Mechanics retrieved successfully',
+                'data' => $mechanics
+            ], 200);
+        } catch (Exception $e) {
+            Log::error("Mechanic Index Error: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to retrieve mechanics',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
         }
-
-        $query->when($request->search, function ($q, $search) {
-            $q->where(function ($inner) use ($search) {
-                $inner->where('name', 'like', "%{$search}%")
-                    ->orWhere('address', 'like', "%{$search}%")
-                    ->orWhere('specialization', 'like', "%{$search}%")
-                    ->orWhere('shop_name', 'like', "%{$search}%");
-            });
-        })->when($request->min_exp, function ($q, $exp) {
-            $q->where('years_experience', '>=', $exp);
-        })->when($request->service_fee, function ($q, $fee) {
-            $q->where('service_fee_starts_at', '<=', $fee);
-        })->when($request->available, function ($q) {
-            $q->where('is_available', true);
-        });
-
-        //24/7
-        $query->when($request->is_24_7, function ($q) {
-            $q->where('is_24_7', true);
-        });
-
-        //Towing
-        $query->when($request->offers_towing, function ($q) {
-            $q->where('offers_towing', true);
-        });
-
-        //Emergency
-        $query->when($request->emergency_vulcanizing, function ($q) {
-            $q->where('specialization', 'Like', '%Vulcanizing%')
-                ->where('is_24_7', true)
-                // pwede nato ni tangtangon kay strict kaayo si emergency vulcanizing
-                ->where('offers_towing', true);
-        });
-
-
-        // $rescuers = Mechanic::where('is_available', true)
-        // ->where(function($query){
-        //     $query->where('specialization', 'Like', '%Vulcanizing%')
-        //     ->orWhere('offers_towing', true);
-        //     })
-        //     ->where('is_24_7', true)->get();
-
-        $mechanics = $query->latest()->paginate(10);
-
-        return response()->json($mechanics);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function store(StoreMechanicRequest $request)
     {
+        $this->authorize('create', Mechanic::class);
 
-        $fields = $request->validate([
-            'shop_name' => 'nullable|string',
-            'address' => 'required|string',
-            'bio' => 'nullable|string',
-            'specialization' => 'nullable|string',
-            'contact_number' => 'required|string|min:11|max:255',
-            'emergency_contact' => 'nullable|string',
-            'years_experience' => 'required|integer|min:0|max:50', // Gi-adjust nako gamay basig naay master mechanic           
-            'is_available' => 'boolean',
-            'diagnostic_fee_base' => 'required|numeric|min:0',
-            'latitude' => 'nullable|numeric|between:-90,90',
-            'longitude' => 'nullable|numeric|between:-180,180',
-            'service_fee_starts_at' => 'nullable|numeric|min:0',
-            'is_24_7' => 'boolean',
-            'offers_towing' => 'boolean',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
-        ]);
+        $path = null;
 
-        $userId = auth()->id();
-
+        DB::beginTransaction();
         try {
+            // Explicit keys come AFTER the spread so they always win
             $mechanic = Mechanic::create([
-                'user_id' => $userId,
-                'shop_name' => $fields['shop_name'] ?? null,
-                'address' => $fields['address'],
-                'bio' => $fields['bio'] ?? null,
-                'specialization' => $fields['specialization'] ?? null,
-                'contact_number' => $fields['contact_number'],
-                'emergency_contact' => $fields['emergency_contact'] ?? null,
-                'years_experience' => $fields['years_experience'],
-                'diagnostic_fee_base' => $fields['diagnostic_fee_base'],
-                'latitude' => $fields['latitude'] ?? null,
-                'longitude' => $fields['longitude'] ?? null,
-                'service_fee_starts_at' => $fields['service_fee_starts_at'] ?? null,
-                // --- BOOLEAN HANDLING ---
-                // Naggamit tag $request->boolean() para sure nga true/false ang ma-save, dili null
+                ...$request->safe()->except('image'),
+                'user_id' => auth()->id(),
+                'name' => auth()->user()->name,
+                'is_available' => $request->boolean('is_available', true),
                 'is_24_7' => $request->boolean('is_24_7'),
                 'offers_towing' => $request->boolean('offers_towing'),
-                'is_available' => $request->has('is_available') ? $request->boolean('is_available') : true,
             ]);
 
-            // MediaMechanic image
             if ($request->hasFile('image')) {
                 $path = $request->file('image')->store('mechanics/profiles', 'public');
                 $mechanic->media()->create([
                     'file_path' => $path,
                     'file_type' => 'image',
-                    'collection' => 'profile'
+                    'collection' => 'profile',
                 ]);
-            }
-
-            return response()->json([
-                'message' => 'Mechanic profile created successfully',
-                'data' => $mechanic->load('images')
-            ], 201);
-
-        } catch (Exception $e) {
-            return response()->json([
-                'message' => 'Error creating mechanic profile',
-                'error' => $e->getMessage()
-            ], 400);
-        }
-    }
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        $mechanic = Mechanic::with('user')->find($id); {
-            if (!$mechanic) {
-                return response()->json(['message' => 'Mechanic not found'], 404);
-            }
-            return response()->json($mechanic);
-        }
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        $mechanic = Mechanic::findOrFail($id);
-
-        /* DEBUG
-        return response()->json([
-        'mechanic_owner' => $mechanic->user_id,
-        'current_user' => auth()->id()
-        ]); */
-
-        // if (!$mechanic) {
-        //     return response()->json(['message' => 'Mechanic not found'], 404);
-        // }
-
-        //Security Check for user update only
-        if ($mechanic->user_id !== auth()->id()) {
-            return response()->json([
-                'message' => 'Unauthorized user profile'
-            ], 403);
-        }
-
-        $fields = request()->validate([
-            'shop_name' => 'nullable|string',
-            'address' => 'sometimes|required|string|',
-            'contact_number' => 'sometimes|required|string',
-            'emergency_contact' => 'nullable|string',
-            'years_experience' => 'sometimes|required|integer',
-            'bio' => 'nullable|string',
-            'specialization' => 'nullable|string',
-            'diagnostic_fee_base' => 'sometimes|required|numeric',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
-            'service_fee_starts_at' => 'nullable|numeric|',
-            'is_24_7' => 'sometimes|boolean',
-            'offers_towing' => 'sometimes|boolean',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
-        ]);
-        DB::beginTransaction();
-        try {
-            $dbFields = $request->except(['image']);
-            $mechanic->update($dbFields);
-
-            if ($request->hasFile('image')) {
-                $path = $request->file('image')->store('mechanics/profiles', 'public');
-
-                $mechanic->media()->updateOrCreate(
-                    ['collection' => 'profile'],
-                    ['file_path' => $path, 'file_type' => 'image']
-                );
             }
 
             DB::commit();
 
-            return response()->json(['message' => 'Mechanic Profile Updated Successfully', 'data' => $mechanic->load('image'), 201]);
+            return response()->json([
+                'message' => 'Mechanic profile created successfully',
+                'data' => $mechanic->load('media')
+            ], 201);
+
+        } catch (UniqueConstraintViolationException $e) {
+            // mechanics.user_id is unique, so a second profile is rejected by the database itself
+            DB::rollBack();
+            $this->deleteFiles($path ? [$path] : []);
+            return response()->json([
+                'message' => 'You already have a mechanic profile.'
+            ], 422);
         } catch (Exception $e) {
             DB::rollBack();
-            Log::error("Mechanic Update Error: " . $e->getMessage());
-
+            $this->deleteFiles($path ? [$path] : []);
+            Log::error("Mechanic Store Error: " . $e->getMessage());
             return response()->json([
-                'message' => 'Failed to Update Mechanic Profile',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+                'message' => 'Error creating mechanic profile',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
+    // Public route: route-model binding returns the 404 for us
+    public function show(Mechanic $mechanic)
     {
-        $mechanic = Mechanic::find($id);
+        try {
+            $mechanic->load(['user:id,name', 'media'])->makeHidden('emergency_contact');
 
-        if (!$mechanic) {
-            return response()->json(['message' => 'Mechanic not found'], 404);
+            return response()->json([
+                'message' => 'Mechanic retrieved successfully',
+                'data' => $mechanic
+            ], 200);
+        } catch (Exception $e) {
+            Log::error("Mechanic Show Error [ID: {$mechanic->id}]: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to retrieve mechanic',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
         }
-        if ($mechanic->user_id !== auth()->id()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+    }
+
+    public function update(UpdateMechanicRequest $request, Mechanic $mechanic)
+    {
+        $this->authorize('update', $mechanic);
+
+        $newPath = null;
+        $oldPath = null;
+
+        DB::beginTransaction();
+        try {
+            // safe() returns ONLY the validated fields, so is_verified / rating / user_id can never be set here
+            $mechanic->update($request->safe()->except('image'));
+
+            if ($request->hasFile('image')) {
+                $newPath = $request->file('image')->store('mechanics/profiles', 'public');
+
+                $profile = $mechanic->media()->where('collection', 'profile')->first();
+                if ($profile) {
+                    $oldPath = $profile->file_path;
+                    $profile->update(['file_path' => $newPath]);
+                } else {
+                    $mechanic->media()->create([
+                        'file_path' => $newPath,
+                        'file_type' => 'image',
+                        'collection' => 'profile',
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            // The old file is deleted only AFTER the commit succeeds
+            $this->deleteFiles($oldPath ? [$oldPath] : []);
+
+            return response()->json([
+                'message' => 'Mechanic profile updated successfully',
+                'data' => $mechanic->load('media')
+            ], 200);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            $this->deleteFiles($newPath ? [$newPath] : []);
+            Log::error("Mechanic Update Error: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to update mechanic profile',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
+    }
+
+    public function destroy(Mechanic $mechanic)
+    {
+        $this->authorize('delete', $mechanic);
+
+        // Consultations (including cancelled ones, which are soft-deleted) point at this mechanic.
+        // Deleting would erase the trust history, so we refuse.
+        if (Consultation::withTrashed()->where('mechanic_id', $mechanic->id)->exists()) {
+            return response()->json([
+                'message' => 'This mechanic has consultation history and cannot be deleted'
+            ], 409);
         }
 
         DB::beginTransaction();
-
         try {
+            $paths = $mechanic->media()->pluck('file_path')->all();
 
-            $images = $mechanic->images;
-
-            foreach ($images as $image) {
-                if (Storage::disk('public')->exists($image->path)) {
-                    Storage::disk('public')->delete($image->path);
-                }
-            }
-            $mechanic->images()->delete();
+            $mechanic->media()->delete();
             $mechanic->delete();
+
             DB::commit();
-            return response()->json(['message' => 'Mechanic Profile Successfully Deleted'], 200);
+            $this->deleteFiles($paths);
+
+            return response()->json([
+                'message' => 'Mechanic profile deleted successfully'
+            ], 200);
+
         } catch (Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Delete Mechanic Profile Failed', 'error' => $e->getMessage()], 500);
+            Log::error("Mechanic Delete Error [ID: {$mechanic->id}]: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Delete mechanic profile failed',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
         }
     }
+
+    // Admin only: the route sits inside the admin group, and the Policy is the second lock
     public function verify(Mechanic $mechanic)
     {
-        $mechanic->is_verified = true;
-        $mechanic->save();
+        $this->authorize('verify', $mechanic);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => "Mechanic {$mechanic->name} is now verified",
-            'data' => $mechanic
-        ]);
+        try {
+            $mechanic->is_verified = true;
+            $mechanic->save();
+
+            return response()->json([
+                'message' => "Mechanic {$mechanic->name} is now verified",
+                'data' => $mechanic
+            ], 200);
+        } catch (Exception $e) {
+            Log::error("Mechanic Verify Error [ID: {$mechanic->id}]: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to verify mechanic',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
+    }
+
+    private function deleteFiles(array $paths): void
+    {
+        if (!empty($paths)) {
+            Storage::disk('public')->delete($paths);
+        }
     }
 }

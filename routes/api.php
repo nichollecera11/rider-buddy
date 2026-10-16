@@ -40,7 +40,11 @@ Route::apiResource('brands', BrandController::class)->only(['index']);
 Route::apiResource('reviews', controller: ReviewController::class)->only(['index', 'show']);
 
 // --- Protected Routes (Kinahanglan Login) ---
-Route::group(['middleware' => ['auth:sanctum']], function () {
+// 'not.banned' goes AFTER 'auth:sanctum' because it needs to know who the user is.
+// A middleware only protects the routes written INSIDE its group.
+Route::group(['middleware' => ['auth:sanctum', 'not.banned']], function () {
+
+    Route::post('/logout', [AuthController::class, 'logout']);
 
     // Ang apiResource automatic na maghimo sa store, update (PUT/PATCH), ug destroy
     Route::apiResource('motorcycles', MotorcycleController::class)->except(['index', 'show']);
@@ -53,24 +57,22 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::get('mechanic/consultations', [ConsultationController::class, 'mechanicRequests']);
     // Para sa pag-delete o pag-manage og tagsa-tagsa nga file
     Route::apiResource('consultation-media', ConsultationMediaController::class)->only(['destroy']);
-    // --- RIDER ROUTES ---
-    // Mag-submit og documents para sa iyang motor
-    // I-check ang status sa iyang compliance
-    Route::post('/lto-compliance/{user_motorcycle}', [LTOComplianceController::class, 'store']);
-
-    Route::post('/logout', [AuthController::class, 'logout']);
     // Diagnostic Reports (Shallow Nested Resource)
     Route::apiResource('consultations.diagnostic-reports', DiagnosticReportController::class)->shallow();
     Route::apiResource('maintenance-logs', MaintenanceLogController::class);
+
+    // --- RIDER ROUTES ---
+    // Mag-submit og documents para sa iyang motor, ug i-check ang status sa iyang compliance
     Route::post('/lto-compliance/{user_motorcycle}', [LTOComplianceController::class, 'store']);
-    Route::get('/lto-compliance/{lto_compliance}/image', [LTOComplianceController::class, 'showImage']);
     Route::get('/lto-compliance', [LTOComplianceController::class, 'index']);
     Route::get('/lto-compliance/{lto_compliance}', [LTOComplianceController::class, 'show']);
+    Route::get('/lto-compliance/{lto_compliance}/image', [LTOComplianceController::class, 'showImage']);
 });
 
 
+
 //SUPER DUPER ADMIN
-Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+Route::middleware(['auth:sanctum', 'not.banned', 'admin'])->prefix('admin')->group(function () {
 
     // 1. Dashboard Stats (Kani ang una para dili ma-intercept sa resource)
     Route::get('/stats', [AdminDashboardController::class, 'index']);
@@ -91,6 +93,3 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     //Admin Verification (Approve/Reject)
     Route::patch('/lto-compliance/{lto_compliance}/verify', [LTOComplianceController::class, 'verify']);
 });
-
-
-

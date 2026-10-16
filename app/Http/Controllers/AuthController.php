@@ -2,60 +2,72 @@
 
 namespace App\Http\Controllers;
 
-use Hash;
-use Illuminate\Http\Request;
+use App\Http\Requests\LoginRequest;
+use App\Http\Requests\RegisterRequest;
 use App\Models\User;
+use Exception;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
+    public function register(RegisterRequest $request)
     {
-        //REGISTRATION pag receive sa info
-        $fields = $request->validate([
-            'name' => 'required|string',
-            'email' => 'required|string|unique:users,email',
-            'password' => 'required|string|confirmed'
-        ]);
-        //himoag slot sa database
-        $user = User::create([
-            'name' => $fields['name'],
-            'email' => $fields['email'],
-            'password' => bcrypt($fields['password'])
+        $fields = $request->validated();
 
-        ]);
-        //Token
-        $token = $user->createToken('riderbuddytoken')->plainTextToken;
-        return response()->json(['user' => $user, 'token' => $token], 201);
+        try {
+            // Only name, email and password are ever read from the request,
+            // so nobody can register themselves as an admin.
+            $user = User::create([
+                'name' => $fields['name'],
+                'email' => $fields['email'],
+                'password' => bcrypt($fields['password']),
+            ]);
+
+            $token = $user->createToken('riderbuddytoken')->plainTextToken;
+
+            return response()->json([
+                // refresh() loads the database defaults (role, is_active, ...) so the shape matches login
+                'user' => $user->refresh(),
+                'token' => $token,
+            ], 201);
+
+        } catch (Exception $e) {
+            Log::error("Register Error: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Registration failed',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
     }
-    public function login(Request $request)
+
+    public function login(LoginRequest $request)
     {
+        $fields = $request->validated();
 
-        //Login
-        $fields = $request->validate([
-            'email' => 'required|string',
-            'password' => 'required|string|'
-        ]);
-
-        //check Email
         $user = User::where('email', $fields['email'])->first();
 
-        //Check password
-
+        // Same message for "no such email" and "wrong password"
         if (!$user || !Hash::check($fields['password'], $user->password)) {
-            return response()->json(['message' => 'Password is incorrect'], 401);
-
-
+            return response()->json(['message' => 'Invalid email or password'], 401);
         }
+
+        // Checked AFTER the password, so banned status is never revealed to someone who doesn't know it
         if ($user->is_banned) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Your account has been banned.',
-            //    'reason' => $user->ban_reason, // Ipakita ang rason kon ngano
-            ], 403); // 403 Forbidden
+            return response()->json(['message' => 'Your account has been banned.'], 403);
         }
+
         $token = $user->createToken('riderbuddytoken')->plainTextToken;
 
-        return response()->json(['user' => $user, 'token' => $token]);
+        return response()->json(['user' => $user, 'token' => $token], 200);
+    }
+
+    // The route already pointed here, but this method did not exist
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json(['message' => 'Logged out successfully'], 200);
     }
 }
-

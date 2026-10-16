@@ -10,6 +10,7 @@ class Mechanic extends Model
     use HasFactory;
     protected $fillable = [
         'user_id',
+        'name',
         'shop_name',
         'address',
         'bio',
@@ -17,7 +18,6 @@ class Mechanic extends Model
         'contact_number',
         'emergency_contact',
         'years_experience',
-        'is_verified',
         'is_available',
         'diagnostic_fee_base',
         'latitude',
