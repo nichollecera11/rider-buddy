@@ -22,9 +22,6 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'role',
-        'is_active', //added
-        'is_banned', 
     ];
 
     /**
@@ -57,6 +54,12 @@ class User extends Authenticatable
     {
         return $this->role === 'admin';
     }
+    public function hasHistory(): bool
+    {
+        return $this->motorcycles()->withTrashed()->exists()
+            || Consultation::withTrashed()->where('user_id', $this->id)->exists()
+            || ($this->mechanic && Consultation::withTrashed()->where('mechanic_id', $this->mechanic->id)->exists());
+    }
 
     public function isSeller(): bool
     {
@@ -75,9 +78,10 @@ class User extends Authenticatable
     {
         return $this->hasOne(Mechanic::class);
     }
-    public function motorcycles(){
+    public function motorcycles()
+    {
         return $this->hasMany(UserMotorcycle::class);
     }
-    
+
 
 }

@@ -92,4 +92,6 @@ Route::middleware(['auth:sanctum', 'not.banned', 'admin'])->prefix('admin')->gro
     Route::get('/lto-compliance/pending', [LTOComplianceController::class, 'listpending']);
     //Admin Verification (Approve/Reject)
     Route::patch('/lto-compliance/{lto_compliance}/verify', [LTOComplianceController::class, 'verify']);
+    Route::patch('/users/{user}/ban', [UserController::class, 'ban']);
+    Route::patch('/users/{user}/unban', [UserController::class, 'unban']);
 });

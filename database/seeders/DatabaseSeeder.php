@@ -116,5 +116,10 @@ class DatabaseSeeder extends Seeder
 
         MaintenanceLog::factory()->count(10)->create();
 
+        // Recalculate each mechanic's stored rating from the seeded reviews
+        Mechanic::all()->each(function ($mechanic) {
+            $avg = Review::where('reviewable_type', Mechanic::class)->where('reviewable_id', $mechanic->id)->avg('rating');
+            Mechanic::where('id', $mechanic->id)->update(['rating' => $avg ? round($avg, 1) : 0]);
+        });
     }
 }

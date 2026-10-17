@@ -3,144 +3,175 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Requests\Admin\BanUserRequest;
+use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Exception;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    // Every route here sits inside the admin group (auth:sanctum + not.banned + admin).
+    // The Policy adds the rules the middleware cannot express, like "not yourself".
+
     public function index(Request $request)
     {
-        $query = User::query();
+        try {
+            $users = User::query()
+                ->when($request->filled('search'), function ($q) use ($request) {
+                    $search = $request->search;
+                    $q->where(function ($inner) use ($search) {
+                        $inner->where('name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%");
+                    });
+                })
+                ->when($request->filled('role'), fn($q) => $q->where('role', $request->role))
+                ->when($request->status === 'banned', fn($q) => $q->where('is_banned', true))
+                ->when($request->status === 'active', fn($q) => $q->where('is_banned', false)->where('is_active', true))
+                ->latest('id')
+                ->paginate(12);
 
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'LIKE', "%{$search}%")
-                    ->orWhere('email', 'LIKE', "%{$search}%");
-            });
+            return response()->json([
+                'message' => 'Users retrieved successfully',
+                'data' => $users
+            ], 200);
+        } catch (Exception $e) {
+            Log::error("Admin User Index Error: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to retrieve users',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
         }
-        // Role Filter
-        if ($request->has('role')) {
-            $query->where('role', $request->role);
-        } 
-        //Banned Logic
-        if ($request->has('status')) {
-            if ($request->status == 'banned') {
-                $query->where('is_banned', true);
-            } elseif ($request->status == 'active') {
-                $query->where('is_banned', false)->where('is_active', true);
-            }
-        }
-        return response()->json([
-            'status' => 'success',
-            'count' => $query->count(),
-            'data' => $query->latest()->paginate(12)
-        ]);
-
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
     public function show(User $user)
     {
-        return response()->json([
-            'status' => 'success',
-            'message' => 'User Updated Successfully',
-            'data' => $user
-        ]);
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, User $user)
-    {
-        DB::beginTransaction();
-
         try {
-            $validated = $request->validate([
-                'name' => 'sometimes|string|max:255',
-                'email' => 'sometimes|email|unique:users,email,' . $user->id,
-                'role' => 'sometimes|string|in:admin,rider,mechanic,seller',
-                'is_active' => 'sometimes|boolean', 
-                'is_banned' => 'sometimes|boolean', 
-            ]);
+            $user->load(['mechanic', 'seller']);
 
-            $user->update($validated);
-            DB::commit();
             return response()->json([
-                'status' => 'Success',
-                'message' => 'User Details Retrieved',
+                'message' => 'User retrieved successfully',
                 'data' => $user
-            ]);
+            ], 200);
         } catch (Exception $e) {
-            DB::rollBack();
+            Log::error("Admin User Show Error [ID: {$user->id}]: " . $e->getMessage());
             return response()->json([
-                'status' => 'error',
-                'message' => 'User Update Failed',
-                'error' => $e->getMessage()
+                'message' => 'Failed to retrieve user',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
-
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+    public function update(UpdateUserRequest $request, User $user)
+    {
+        $this->authorize('update', $user);
+
+        $fields = $request->validated();
+
+        // An admin must not lock themselves out by demoting their own account
+        if (isset($fields['role']) && $fields['role'] !== $user->role && $user->is(auth()->user())) {
+            return response()->json([
+                'message' => 'You cannot change your own role'
+            ], 422);
+        }
+
+        try {
+            $user->fill(collect($fields)->only(['name', 'email'])->all());
+
+            // role is not mass-assignable, so it is set on purpose, never through fill()
+            if (isset($fields['role'])) {
+                $user->role = $fields['role'];
+            }
+
+            $user->save();
+
+            return response()->json([
+                'message' => 'User updated successfully',
+                'data' => $user
+            ], 200);
+        } catch (Exception $e) {
+            Log::error("Admin User Update Error [ID: {$user->id}]: " . $e->getMessage());
+            return response()->json([
+                'message' => 'User update failed',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
+    }
+
+    public function ban(BanUserRequest $request, User $user)
+    {
+        $this->authorize('ban', $user);
+
+        try {
+            // Set on purpose: is_banned and ban_reason are not mass-assignable
+            $user->is_banned = true;
+            $user->ban_reason = $request->validated()['ban_reason'] ?? 'Banned by administrator';
+            $user->save();
+
+            // Sign them out right away (the not.banned middleware would also catch them on their next request)
+            $user->tokens()->delete();
+
+            return response()->json([
+                'message' => 'User banned and active sessions revoked',
+                'data' => $user
+            ], 200);
+        } catch (Exception $e) {
+            Log::error("Admin User Ban Error [ID: {$user->id}]: " . $e->getMessage());
+            return response()->json([
+                'message' => 'User ban failed',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
+    }
+
+    public function unban(User $user)
+    {
+        $this->authorize('ban', $user);
+
+        try {
+            $user->is_banned = false;
+            $user->ban_reason = null;
+            $user->save();
+
+            return response()->json([
+                'message' => 'User unbanned',
+                'data' => $user
+            ], 200);
+        } catch (Exception $e) {
+            Log::error("Admin User Unban Error [ID: {$user->id}]: " . $e->getMessage());
+            return response()->json([
+                'message' => 'User unban failed',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+            ], 500);
+        }
+    }
+
     public function destroy(User $user)
     {
-        DB::beginTransaction();
+        $this->authorize('delete', $user);
+
+        // Deleting a user cascades into their profiles and can erase consultation and health history.
+        // Accounts with history are banned instead of deleted.
+        if ($user->hasHistory()) {
+            return response()->json([
+                'message' => 'This user has history (consultations or motorcycles) and cannot be deleted. Ban the account instead.'
+            ], 409);
+        }
+
         try {
-            // Dinhi, kon naay related data, i-delete pud (e.g., reviews)
-            // $user->reviews()->delete();
+            $user->tokens()->delete();
             $user->delete();
-            DB::commit();
+
             return response()->json([
-                'status' => 'Success',
-                'message' => 'User Deleted Permanently',
-            ]);
+                'message' => 'User deleted successfully'
+            ], 200);
         } catch (Exception $e) {
-            DB::rollBack();
+            Log::error("Admin User Delete Error [ID: {$user->id}]: " . $e->getMessage());
             return response()->json([
-                'status' => 'error',
-                'message' => 'User Delete Failed',
-                'error' => $e->getMessage()
+                'message' => 'User delete failed',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
-    }
-    public function ban(User $user)
-    {
-        $user->update(['is_banned' => true]);
-        return response()->json(['message' => 'User has been banned!']);
     }
 }
