@@ -2,85 +2,38 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\ConsultationMedia;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
 use Exception;
+use Illuminate\Support\Facades\Log;
 
 class ConsultationMediaController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    // Only destroy() is routed (apiResource(...)->only(['destroy'])), so the empty resource stubs were removed.
+    // The parameter name must match the route: run `php artisan route:list --path=consultation-media`
+    // and check it shows {consultation_medium}.
+    public function destroy(ConsultationMedia $consultationMedium)
     {
-        //
-    }
+        $this->authorize('delete', $consultationMedium);
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-
-
-        $media = ConsultationMedia::findOrFail($id);
-        $user = auth()->user();
-
-        if ($media->consultation->user_id !== $user->id && $media->consultation->mechanic_id !== $user->mechanic?->id) {
+        // Evidence is frozen once the consultation is completed, because a dispute may need it
+        if ($consultationMedium->isLocked()) {
             return response()->json([
-                'message' => 'Unauthorized, Limited Permissions'
-            ], 403);
+                'message' => 'Media cannot be removed once the consultation is underway'
+            ], 409);
         }
 
-        DB::beginTransaction();
         try {
-
-            if (Storage::disk('public')->exists($media->file_path)) {
-                Storage::disk('public')->delete($media->file_path);
-            }
-
-            $media->delete();
-
-            DB::commit();
+            // Soft delete only. The file stays on disk, so the evidence can still be recovered.
+            $consultationMedium->delete();
 
             return response()->json([
-                'message' => 'Media Deleted and Files Removed From Storage'
+                'message' => 'Media removed successfully'
             ], 200);
-
         } catch (Exception $e) {
-            DB::rollBack();
-            Log::error("Deleting Media Files Failed: " . $e->getMessage());
+            Log::error("Consultation Media Delete Error [ID: {$consultationMedium->id}]: " . $e->getMessage());
             return response()->json([
-                'status' => 'error',
-                'message' => 'Deleting Media and Files Failed, Please Try Again',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+                'message' => 'Failed to remove media',
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
     }

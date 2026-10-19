@@ -23,4 +23,8 @@ class ConsultationMedia extends Model
     {
         return $this->belongsTo(Consultation::class);
     }
+    public function isLocked(): bool
+    {
+        return $this->consultation?->status !== "pending";
+    }
 }
