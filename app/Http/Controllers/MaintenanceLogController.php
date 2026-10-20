@@ -22,7 +22,7 @@ class MaintenanceLogController extends Controller
 
         DB::beginTransaction();
         try {
-            $query = MaintenanceLog::with(['motorcycle.brand', 'mechanic.user']);
+            $query = MaintenanceLog::with(['motorcycle.brand', 'mechanic.user:id,name']);
 
             if ($user->mechanic) {
                 $query->where('mechanic_id', $user->mechanic->id);
@@ -127,7 +127,7 @@ class MaintenanceLogController extends Controller
         $this->authorize('view', $maintenanceLog);
 
         try {
-            $maintenanceLog->load('motorcycle.brand', 'mechanic.user', 'diagnosticReport');
+            $maintenanceLog->load('motorcycle.brand', 'mechanic.user:id,name', 'diagnosticReport');
             return response()->json([
                 'message' => 'Maintenance Log Retrieved Succesfully',
                 'data' => $maintenanceLog
@@ -163,7 +163,7 @@ class MaintenanceLogController extends Controller
 
             return response()->json([
                 'message' => 'Maintenance Log Update Successfully',
-                'data' => $maintenanceLog->load(['motorcycle.brand', 'mechanic.user'])
+                'data' => $maintenanceLog->load(['motorcycle.brand', 'mechanic.user:id,name'])
             ], 200);
 
         } catch (Exception $e) {
@@ -171,7 +171,7 @@ class MaintenanceLogController extends Controller
             Log::error("Maintenance Log Update Error: " . $e->getMessage());
             return response()->json([
                 'message' => 'Failed to Update Maintenance Log',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
     }

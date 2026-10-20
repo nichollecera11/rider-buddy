@@ -26,7 +26,7 @@ class ConsultationController extends Controller
 
         try {
             // 1. Base Query with Eager Loading (Walay Transaction kay Read-only ni)
-            $query = Consultation::with(['user', 'mechanic.user', 'motorcycle', 'media']);
+            $query = Consultation::with(['user:id,name', 'mechanic.user:id,name', 'motorcycle', 'media']);
 
             // 2. Role Filtering
             if ($user->mechanic) {
@@ -58,6 +58,10 @@ class ConsultationController extends Controller
                 });
 
             $consultations = $query->latest()->get();
+
+            if (!$user->mechanic) {
+                $consultations->each->makeVisible('verification_otp');
+            }
 
             return response()->json([
                 'message' => 'Consultations Retrieved Successfully',
@@ -99,7 +103,7 @@ class ConsultationController extends Controller
             DB::commit();
             return response()->json([
                 'message' => 'Consultation Created Successfully',
-                'data' => $consultation->load('media', 'mechanic.user', 'motorcycle.brand', 'user'),
+                'data' => $consultation->makeVisible('verification_otp')->load('media', 'mechanic.user:id,name', 'motorcycle.brand', 'user:id,name')
             ], 201);
 
         } catch (Exception $e) {
@@ -122,7 +126,10 @@ class ConsultationController extends Controller
         $this->authorize('view', $consultation);
 
         try {
-            $consultation->load(['user', 'mechanic.user', 'motorcycle', 'media']);
+            $consultation->load(['user:id,name', 'mechanic.user:id,name', 'motorcycle', 'media']);
+            if ($consultation->user_id === auth()->id()) {
+                $consultation->makeVisible('verification_otp');
+            }
 
             return response()->json([
                 'message' => 'Consultation Details Retrieved',
@@ -145,7 +152,6 @@ class ConsultationController extends Controller
     {
         $this->authorize('update', $consultation);
 
-        DB::beginTransaction();
         try {
             $fields = $request->safe()->except('verification_otp_input');
 
@@ -163,7 +169,7 @@ class ConsultationController extends Controller
                     $fields['arrived_at'] = now();
                 }
             }
-
+            DB::beginTransaction();
             $consultation->update($fields);
             $consultation->attachMedia($request);
 
@@ -171,7 +177,7 @@ class ConsultationController extends Controller
 
             return response()->json([
                 'message' => 'Consultation Updated Successfully',
-                'data' => $consultation->load('media', 'user', 'motorcycle'),
+                'data' => $consultation->load('media', 'user:id,name', 'motorcycle')
             ], 200);
 
         } catch (Exception $e) {
@@ -190,7 +196,7 @@ class ConsultationController extends Controller
      */
     public function destroy(Consultation $consultation)
     {
-        $this->authorize('delete', '$consultation');
+        $this->authorize('delete', $consultation);
 
         if (!$consultation->isCancellable()) {
             return response()->json([
@@ -222,7 +228,7 @@ class ConsultationController extends Controller
                 ], 403);
             }
             $consultations = Consultation::where('mechanic_id', $mechanic->id)
-                ->with(['user', 'motorcycle.brand', 'media'])
+                ->with(['user:id,name', 'motorcycle.brand', 'media'])
                 ->latest()->get();
 
             return response()->json([

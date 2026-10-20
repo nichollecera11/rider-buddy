@@ -9,9 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Consultation extends Model
 {
-    /** @use HasFactory<\Database\Factories\ConsultationFactory> */
-    use HasFactory;
-
+    
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -19,6 +17,7 @@ class Consultation extends Model
         'mechanic_id',
         'user_motorcycle_id',
         'consultation_type',
+
         'issue_description',
         'agreed_diagnostic_fee',
         'estimated_repair_costs',
@@ -31,6 +30,7 @@ class Consultation extends Model
         'mechanic_notes',
         'verification_otp',
         'arrived_at'
+
     ];
 
     protected $casts = [
@@ -41,6 +41,7 @@ class Consultation extends Model
         'longitude' => 'decimal:8',
 
     ];
+    protected $hidden = ['verification_otp'];
 
     // 🚀 MAO NI ANG NA-MISSING NIMO NGA RELATIONSHIP
     public function mechanic()

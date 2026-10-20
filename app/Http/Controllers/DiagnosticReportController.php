@@ -23,7 +23,7 @@ class DiagnosticReportController extends Controller
         try {
             $query = DiagnosticReport::with([
                 'consultation.motorcycle',
-                'mechanic.user',
+                'mechanic.user:id,name',
                 'maintenanceLogs', //Optional, if you want to show if it was repaired
             ]);
 
@@ -100,7 +100,7 @@ class DiagnosticReportController extends Controller
             DB::commit();
             return response()->json([
                 'message' => 'Diagnostic report created successfully',
-                'data' => $report->load(['consultation', 'mechanic.user'])
+                'data' => $report->load(['consultation', 'mechanic.user:id,name'])
             ], 201);
 
         } catch (Exception $e) {
@@ -122,7 +122,7 @@ class DiagnosticReportController extends Controller
         $this->authorize('view', $diagnostic_report);
 
         try {
-            $diagnostic_report->load(['consultation.motorcycle', 'mechanic.user', 'maintenanceLogs']);
+            $diagnostic_report->load(['consultation.motorcycle', 'mechanic.user:id,name', 'maintenanceLogs']);
             return response()->json([
                 'message' => 'Diagnostic Report Details Retrieved',
                 'data' => $diagnostic_report

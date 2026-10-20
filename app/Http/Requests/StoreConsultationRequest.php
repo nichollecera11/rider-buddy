@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreConsultationRequest extends FormRequest
 {
@@ -21,7 +22,12 @@ class StoreConsultationRequest extends FormRequest
     {
         return [
             'mechanic_id' => 'required|exists:mechanics,id',
-            'user_motorcycle_id' => 'required|exists:user_motorcycles,id',
+            'user_motorcycle_id' => [
+                'required',
+                Rule::exists('user_motorcycles', 'id')
+                    ->where('user_id', $this->user()->id)
+                    ->whereNull('deleted_at'),
+            ],
             'issue_description' => 'required|string|min:10',
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
