@@ -47,8 +47,8 @@ Route::group(['middleware' => ['auth:sanctum', 'not.banned']], function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     // Ang apiResource automatic na maghimo sa store, update (PUT/PATCH), ug destroy
-    Route::apiResource('motorcycles', MotorcycleController::class)->except(['index', 'show']);
-    Route::apiResource('parts', PartController::class)->except(['index', 'show']);
+    // Route::apiResource('motorcycles', MotorcycleController::class)->except(['index', 'show']);
+    // Route::apiResource('parts', PartController::class)->except(['index', 'show']);
     Route::apiResource('mechanics', MechanicController::class)->except(['index', 'show']);
     Route::apiResource('sellers', SellerController::class)->except(['index', 'show']);
     Route::apiResource('reviews', ReviewController::class)->except(['index', 'show']);

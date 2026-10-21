@@ -19,8 +19,6 @@ class Seller extends Model
         'description',
         'latitude',
         'longitude',
-        'is_official_store',
-        'is_verified',
         'is_24_7'
     ];
     protected $casts = [
@@ -55,6 +53,15 @@ class Seller extends Model
     public function scopeWithDistance($query, $lat, $lng)
     {
         return $query->selectRaw("*, (6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) AS distance", [$lat, $lng, $lat]);
+    }
+    public function reviews()
+    {
+        return $this->morphMany(Review::class, 'reviewable');
+    }
+
+    public function hasListings(): bool
+    {
+        return $this->motorcycles()->exists() || $this->parts()->exists();
     }
 
 }
