@@ -67,6 +67,11 @@ Route::group(['middleware' => ['auth:sanctum', 'not.banned']], function () {
     Route::get('/lto-compliance', [LTOComplianceController::class, 'index']);
     Route::get('/lto-compliance/{lto_compliance}', [LTOComplianceController::class, 'show']);
     Route::get('/lto-compliance/{lto_compliance}/image', [LTOComplianceController::class, 'showImage']);
+
+    Route::get('/mechanic-profile', [
+        MechanicController::class,
+        'myProfile',
+    ]);
 });
 
 

@@ -65,10 +65,50 @@ class Mechanic extends Model
     }
 
     // 3. DISTANCE CALCULATION (Perfect na ni!)
+
     public function scopeWithDistance($query, $lat, $lng)
     {
-        return $query->selectRaw("*, (6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) AS distance", [$lat, $lng, $lat]);
+        $connection = $query->getConnection();
+
+        if ($connection->getDriverName() === 'sqlite') {
+            // Approximate distance for SQLite tests.
+            // One degree of latitude is approximately 111 km.
+            // Longitude distance varies with latitude.
+            $latKm = 111.0;
+            $lngKm = max(111.0 * cos(deg2rad((float) $lat)), 0.01);
+
+            return $query->selectRaw(
+                'mechanics.*,
+            (((latitude - ?) * ?) * ((latitude - ?) * ?)
+            + ((longitude - ?) * ?) * ((longitude - ?) * ?)) AS distance',
+                [
+                    $lat,
+                    $latKm,
+                    $lat,
+                    $latKm,
+                    $lng,
+                    $lngKm,
+                    $lng,
+                    $lngKm,
+                ]
+            );
+        }
+
+        // Exact spherical distance calculation for MySQL/MariaDB.
+        return $query->selectRaw(
+            'mechanics.*,
+        (6371 * acos(
+            LEAST(1, GREATEST(-1,
+                cos(radians(?))
+                * cos(radians(latitude))
+                * cos(radians(longitude) - radians(?))
+                + sin(radians(?)) * sin(radians(latitude))
+            ))
+        )) AS distance',
+            [$lat, $lng, $lat]
+        );
     }
+
 
     // 4. RATING ATTRIBUTE (With Safe Null Handling)
     public function getAverageRatingAttribute()

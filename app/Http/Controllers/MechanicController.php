@@ -16,15 +16,83 @@ use Illuminate\Support\Facades\Storage;
 class MechanicController extends Controller
 {
     // Public route: no login, so never call auth()->user()->something here
+
     public function index(Request $request)
     {
+
+        // Validate optional coordinates when supplied.
+        $validated = $request->validate([
+            'lat' => [
+                'sometimes',
+                'required_with:lng',
+                'numeric',
+                'between:-90,90',
+            ],
+            'lng' => [
+                'sometimes',
+                'required_with:lat',
+                'numeric',
+                'between:-180,180',
+            ],
+        ]);
         try {
             $query = Mechanic::with(['user:id,name', 'media']);
 
-            if ($request->lat && $request->lng) {
-                $query->withDistance($request->lat, $request->lng)
-                    ->having('distance', '<', 50)
-                    ->orderBy('distance', 'asc');
+            $hasLocation = isset($validated['lat'], $validated['lng']);
+
+            if ($hasLocation) {
+                $lat = (float) $validated['lat'];
+                $lng = (float) $validated['lng'];
+
+                $query->whereNotNull('latitude')
+                    ->whereNotNull('longitude')
+                    ->withDistance($lat, $lng);
+
+                if ($query->getConnection()->getDriverName() === 'sqlite') {
+                    // Approximate bounding box for a 50 km search radius.
+
+                    $latKm = 111.0;
+                    $lngKm = max(111.0 * cos(deg2rad($lat)), 0.01);
+
+                    // Keep the bounding box to narrow down candidates.
+                    $latDelta = 50 / $latKm;
+                    $lngDelta = 50 / $lngKm;
+
+                    $query->whereBetween('latitude', [
+                        max(-90, $lat - $latDelta),
+                        min(90, $lat + $latDelta),
+                    ])->whereBetween('longitude', [
+                                max(-180, $lng - $lngDelta),
+                                min(180, $lng + $lngDelta),
+                            ]);
+
+                    // Filter candidates to the approximate 50 km circle.
+// This uses the same local distance approximation as scopeWithDistance().
+                    $query->whereRaw(
+                        '(
+        ((latitude - ?) * ?) * ((latitude - ?) * ?)
+        + ((longitude - ?) * ?) * ((longitude - ?) * ?)
+    ) <= ?',
+                        [
+                            $lat,
+                            $latKm,
+                            $lat,
+                            $latKm,
+                            $lng,
+                            $lngKm,
+                            $lng,
+                            $lngKm,
+                            2500,
+                        ]
+                    );
+
+                } else {
+                    // Production distance is calculated in kilometers.
+                    $query->having('distance', '<', 50);
+                }
+
+                // Nearest mechanics first.
+                $query->orderBy('distance', 'asc');
             }
 
             $query->when($request->search, function ($q, $search) {
@@ -35,32 +103,67 @@ class MechanicController extends Controller
                         ->orWhere('shop_name', 'like', "%{$search}%");
                 });
             })
-                ->when($request->min_exp, fn ($q, $exp) => $q->where('years_experience', '>=', $exp))
-                ->when($request->service_fee, fn ($q, $fee) => $q->where('service_fee_starts_at', '<=', $fee))
-                ->when($request->available, fn ($q) => $q->where('is_available', true))
-                ->when($request->is_24_7, fn ($q) => $q->where('is_24_7', true))
-                ->when($request->offers_towing, fn ($q) => $q->where('offers_towing', true))
+                ->when(
+                    $request->min_exp,
+                    fn($q, $exp) => $q->where(
+                        'years_experience',
+                        '>=',
+                        $exp
+                    )
+                )
+                ->when(
+                    $request->service_fee,
+                    fn($q, $fee) => $q->where(
+                        'service_fee_starts_at',
+                        '<=',
+                        $fee
+                    )
+                )
+                ->when(
+                    $request->available,
+                    fn($q) => $q->where('is_available', true)
+                )
+                ->when(
+                    $request->is_24_7,
+                    fn($q) => $q->where('is_24_7', true)
+                )
+                ->when(
+                    $request->offers_towing,
+                    fn($q) => $q->where('offers_towing', true)
+                )
                 ->when($request->emergency_vulcanizing, function ($q) {
                     $q->where('specialization', 'like', '%Vulcanizing%')
                         ->where('is_24_7', true)
                         ->where('offers_towing', true);
                 });
 
-            $mechanics = $query->latest('id')->paginate(10)
-                ->through(fn ($m) => $m->makeHidden('emergency_contact'));
+            // Without coordinates, show the newest profiles first.
+            if (!$hasLocation) {
+                $query->latest('id');
+            }
+
+            $mechanics = $query->paginate(10)
+                ->through(fn($mechanic) => $mechanic->makeHidden(
+                    'emergency_contact'
+                ));
 
             return response()->json([
                 'message' => 'Mechanics retrieved successfully',
-                'data' => $mechanics
+                'data' => $mechanics,
             ], 200);
+
         } catch (Exception $e) {
-            Log::error("Mechanic Index Error: " . $e->getMessage());
+            Log::error('Mechanic Index Error: ' . $e->getMessage());
+
             return response()->json([
                 'message' => 'Failed to retrieve mechanics',
-                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
+                'error' => config('app.debug')
+                    ? $e->getMessage()
+                    : 'Server Error',
             ], 500);
         }
     }
+
 
     public function store(StoreMechanicRequest $request)
     {
@@ -113,6 +216,42 @@ class MechanicController extends Controller
             ], 500);
         }
     }
+
+
+    public function myProfile()
+    {
+        try {
+            $mechanic = auth()->user()
+                ->mechanic()
+                ->with('media')
+                ->first();
+
+            if (!$mechanic) {
+                return response()->json([
+                    'message' => 'Mechanic profile not found',
+                    'data' => null,
+                ], 404);
+            }
+
+            $mechanic->makeHidden('emergency_contact');
+
+            return response()->json([
+                'message' => 'Mechanic profile retrieved successfully',
+                'data' => $mechanic,
+            ], 200);
+
+        } catch (Exception $e) {
+            Log::error('My Mechanic Profile Error: ' . $e->getMessage());
+
+            return response()->json([
+                'message' => 'Failed to retrieve mechanic profile',
+                'error' => config('app.debug')
+                    ? $e->getMessage()
+                    : 'Server Error',
+            ], 500);
+        }
+    }
+
 
     // Public route: route-model binding returns the 404 for us
     public function show(Mechanic $mechanic)
