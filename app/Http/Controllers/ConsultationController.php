@@ -26,7 +26,13 @@ class ConsultationController extends Controller
 
         try {
             // 1. Base Query with Eager Loading (Walay Transaction kay Read-only ni)
-            $query = Consultation::with(['user:id,name', 'mechanic.user:id,name', 'motorcycle', 'media']);
+            $query = Consultation::with([
+                'user:id,name',
+                'mechanic:id,user_id,name,shop_name,specialization',
+                'mechanic.user:id,name',
+                'motorcycle',
+                'media',
+            ]);
 
             // 2. Role Filtering
             if ($user->mechanic) {
@@ -59,9 +65,9 @@ class ConsultationController extends Controller
 
             $consultations = $query->latest()->get();
 
-            if (!$user->mechanic) {
-                $consultations->each->makeVisible('verification_otp');
-            }
+            // if (!$user->mechanic) {
+            //     $consultations->each->makeVisible('verification_otp');
+            // }
 
             return response()->json([
                 'message' => 'Consultations Retrieved Successfully',
@@ -81,40 +87,95 @@ class ConsultationController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+
+
     public function store(StoreConsultationRequest $request)
     {
-        $mechanic = Mechanic::findOrFail($request->mechanic_id);
-
-        DB::beginTransaction();
+        $userId = (int) auth()->id();
 
         try {
+            $result = DB::transaction(function () use ($request, $userId) {
+                // Serialize consultation creation for this rider.
+                DB::table('users')
+                    ->where('id', $userId)
+                    ->lockForUpdate()
+                    ->first();
 
-            $consultation = Consultation::create([
-                ...$request->safe()->except(['images', 'videos']),
-                'user_id' => auth()->id(),
-                'agreed_diagnostic_fee' => $mechanic->diagnostic_fee_base,
-                'status' => 'pending',
-                'payment_status' => 'pending',
-                'verification_otp' => str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT),
-            ]);
+                // Prevent a rider from creating multiple unresolved SOS requests.
+                if ($request->input('consultation_type') === 'sos') {
+                    $existingSOS = Consultation::findUnresolvedSOS($userId);
 
-            $consultation->attachMedia($request);
+                    if ($existingSOS) {
+                        return [
+                            'duplicate' => true,
+                            'data' => [
+                                'id' => $existingSOS->id,
+                                'status' => $existingSOS->status,
+                                'consultation_type' => $existingSOS->consultation_type,
+                                'created_at' => $existingSOS->created_at,
+                            ],
+                        ];
+                    }
+                }
 
-            DB::commit();
+                $mechanic = Mechanic::findOrFail(
+                    $request->input('mechanic_id')
+                );
+
+                $consultation = Consultation::create([
+                    ...$request->safe()->except(['images', 'videos']),
+                    'user_id' => $userId,
+                    'agreed_diagnostic_fee' => $mechanic->diagnostic_fee_base,
+                    'status' => 'pending',
+                    'payment_status' => 'pending',
+                    'verification_otp' => Consultation::generateVerificationOtp(),
+                    'verification_otp_created_at' => now(),
+                ]);
+
+                $consultation->attachMedia($request);
+
+                return [
+                    'duplicate' => false,
+                    'consultation' => $consultation,
+                ];
+            });
+
+            if ($result['duplicate']) {
+                return response()->json([
+                    'message' => 'You already have an unresolved SOS request. Please check its status before submitting another.',
+                    'data' => $result['data'],
+                ], 409);
+            }
+
+            $consultation = $result['consultation'];
+
             return response()->json([
                 'message' => 'Consultation Created Successfully',
-                'data' => $consultation->makeVisible('verification_otp')->load('media', 'mechanic.user:id,name', 'motorcycle.brand', 'user:id,name')
+                'data' => $consultation
+                    ->makeVisible('verification_otp')
+                    ->load(
+                        'media',
+                        'mechanic.user:id,name',
+                        'motorcycle.brand',
+                        'user:id,name'
+                    ),
             ], 201);
 
-        } catch (Exception $e) {
-            DB::rollBack();
-            Log::error("Create Consultation Error: " . $e->getMessage());
+        } catch (\Throwable $e) {
+            Log::error('Create Consultation Error', [
+                'user_id' => $userId,
+                'exception' => $e,
+            ]);
+
             return response()->json([
                 'message' => 'Error Creating Consultation',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error',
-            ], 400);
+                'error' => config('app.debug')
+                    ? $e->getMessage()
+                    : 'Server Error',
+            ], 500);
         }
     }
+
 
     /**
      * Display the specified resource.

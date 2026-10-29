@@ -7,36 +7,81 @@ use Illuminate\Validation\Rule;
 
 class StoreConsultationRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
-        return true;
+        return $this->user() !== null;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     */
     public function rules(): array
     {
         return [
-            'mechanic_id' => 'required|exists:mechanics,id',
+            'mechanic_id' => [
+                'required',
+                'integer',
+                Rule::exists('mechanics', 'id'),
+            ],
+
             'user_motorcycle_id' => [
                 'required',
+                'integer',
                 Rule::exists('user_motorcycles', 'id')
-                    ->where('user_id', $this->user()->id)
+                    ->where('user_id', $this->user()?->id)
                     ->whereNull('deleted_at'),
             ],
-            'issue_description' => 'required|string|min:10',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
-            'location_name' => 'nullable|string',
-            'consultation_type' => 'required|in:standard,sos',
-            'images' => 'sometimes|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120',
-            'videos' => 'sometimes|array',
-            'videos.*' => 'mimes:mp4,mov,avi|max:20480',
+
+            'consultation_type' => [
+                'required',
+                Rule::in(['standard', 'sos']),
+            ],
+
+            'issue_description' => [
+                'required',
+                'string',
+                'min:10',
+                'max:2000',
+            ],
+
+            'latitude' => [
+                'nullable',
+                'numeric',
+                'between:-90,90',
+            ],
+
+            'longitude' => [
+                'nullable',
+                'numeric',
+                'between:-180,180',
+            ],
+
+            'location_name' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'images' => [
+                'sometimes',
+                'array',
+                'max:10',
+            ],
+
+            'images.*' => [
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:5120',
+            ],
+
+            'videos' => [
+                'sometimes',
+                'array',
+                'max:3',
+            ],
+
+            'videos.*' => [
+                'file',
+                'mimes:mp4,mov,avi',
+                'max:20480',
+            ],
         ];
     }
 }

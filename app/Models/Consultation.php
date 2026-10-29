@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Consultation extends Model
 {
-    
+
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -39,6 +39,7 @@ class Consultation extends Model
         'estimated_repair_costs' => 'decimal:2',
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
+        'verification_otp_created_at' => 'datetime',
 
     ];
     protected $hidden = ['verification_otp'];
@@ -92,17 +93,50 @@ class Consultation extends Model
         }
     }
 
-    public function verifyOtp(string $input)
+
+    public static function generateVerificationOtp(): string
     {
-        if ($input !== $this->verification_otp) {
+        return str_pad(
+            (string) random_int(0, 999999),
+            6,
+            '0',
+            STR_PAD_LEFT
+        );
+    }
+
+    public function refreshVerificationOtp(): string
+    {
+        $otp = self::generateVerificationOtp();
+
+        $this->forceFill([
+            'verification_otp' => $otp,
+            'verification_otp_created_at' => now(),
+        ])->save();
+
+        return $otp;
+    }
+
+    public function verifyOtp(string $input): array
+    {
+        if (
+            !$this->verification_otp ||
+            !hash_equals((string) $this->verification_otp, $input)
+        ) {
             return [false, 'Invalid OTP code. Verification Failed'];
         }
-        //temporary revert back to 2 minutes, this is only for testing in postman
-        if ($this->updated_at->diffInMinutes(now()) > 2) {
+
+        if (!$this->verification_otp_created_at) {
+            return [false, 'OTP timestamp is missing. Please refresh the QR code.'];
+        }
+
+        // Temporary two-minute expiry for testing.
+        if ($this->verification_otp_created_at->lt(now()->subMinutes(2))) {
             return [false, 'QR Code Expired, Rider Needs to Refresh the QR'];
         }
+
         return [true, null];
     }
+
 
     public function isCancellable(): bool
     {
@@ -119,4 +153,17 @@ class Consultation extends Model
     {
         return $this->mechanic && $this->mechanic->user_id === $user->id;
     }
+
+
+    public static function findUnresolvedSOS(int $userId): ?self
+    {
+        return static::query()
+            ->where('user_id', $userId)
+            ->where('consultation_type', 'sos')
+            ->whereIn('status', ['pending', 'accepted', 'ongoing'])
+            ->latest()
+            ->first();
+    }
+
+
 }

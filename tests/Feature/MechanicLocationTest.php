@@ -123,12 +123,12 @@ class MechanicLocationTest extends TestCase
 
     public function test_nearby_mechanics_are_returned_closest_first(): void
     {
-        $near = \App\Models\Mechanic::factory()->create([
+        $near = Mechanic::factory()->create([
             'latitude' => 8.4542,
             'longitude' => 124.6319,
         ]);
 
-        $far = \App\Models\Mechanic::factory()->create([
+        $far = Mechanic::factory()->create([
             'latitude' => 8.5000,
             'longitude' => 124.6800,
         ]);
@@ -156,7 +156,7 @@ class MechanicLocationTest extends TestCase
 
     public function test_nearby_search_excludes_mechanics_without_coordinates(): void
     {
-        $withoutLocation = \App\Models\Mechanic::factory()->create([
+        $withoutLocation = Mechanic::factory()->create([
             'latitude' => null,
             'longitude' => null,
         ]);
@@ -191,16 +191,16 @@ class MechanicLocationTest extends TestCase
 
     public function test_nearby_search_excludes_mechanics_outside_radius_at_bounding_box_corner(): void
     {
-        $near = \App\Models\Mechanic::factory()->create([
+        $near = Mechanic::factory()->create([
             'latitude' => 8.4542,
             'longitude' => 124.6319,
         ]);
 
         // This point is within the rough bounding box but outside
         // the 50 km circular radius.
-        $outside = \App\Models\Mechanic::factory()->create([
-            'latitude' => 8.77,
-            'longitude' => 124.95,
+        $outside = Mechanic::factory()->create([
+            'latitude' => 8.80,
+            'longitude' => 124.98,
         ]);
 
         $response = $this->getJson(
