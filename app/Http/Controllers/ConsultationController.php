@@ -209,47 +209,119 @@ class ConsultationController extends Controller
     /**
      * Update the specified resource in storage.
      */
+
     public function update(UpdateConsultationRequest $request, Consultation $consultation)
     {
         $this->authorize('update', $consultation);
 
         try {
-            $fields = $request->safe()->except('verification_otp_input');
+            $updatedConsultation = DB::transaction(function () use ($request, $consultation) {
 
-            if ($request->status === 'ongoing') {
-                if (!$request->filled('verification_otp_input')) {
-                    return response()->json(['message' => 'QR Scan required to start service'], 422);
+                // Lock the consultation to prevent simultaneous status changes.
+                $lockedConsultation = Consultation::whereKey($consultation->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                // Recheck authorization against the locked record.
+                $this->authorize('update', $lockedConsultation);
+
+                $validated = $request->validated();
+                $requestedStatus = $validated['status'] ?? null;
+
+                $fields = [];
+
+                // Only allow mechanics to update these service-related fields.
+                foreach ([
+                    'mechanic_notes',
+                    'suggested_parts',
+                    'estimated_repair_costs',
+                ] as $field) {
+                    if (array_key_exists($field, $validated)) {
+                        $fields[$field] = $validated[$field];
+                    }
                 }
 
-                [$ok, $error] = $consultation->verifyOtp($request->verification_otp_input);
-                if (!$ok) {
-                    return response()->json(['message' => $error], 422);
+                if ($requestedStatus) {
+
+                    // A mechanic can accept only a pending consultation.
+                    if ($requestedStatus === 'accepted') {
+                        if ($lockedConsultation->status !== 'pending') {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                'status' => 'Only pending consultations can be accepted.',
+                            ]);
+                        }
+                    }
+
+                    // Starting service requires the rider's valid OTP.
+                    elseif ($requestedStatus === 'ongoing') {
+                        if ($lockedConsultation->status !== 'accepted') {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                'status' => 'Only accepted consultations can be started.',
+                            ]);
+                        }
+
+                        $otp = $validated['verification_otp_input'] ?? null;
+
+                        if (!$otp) {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                'verification_otp_input' => 'Rider OTP is required to start the service.',
+                            ]);
+                        }
+
+                        [$valid, $error] = $lockedConsultation->verifyOtp($otp);
+
+                        if (!$valid) {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                'verification_otp_input' => $error,
+                            ]);
+                        }
+
+                        $fields['arrived_at'] = now();
+                    }
+
+                    // A consultation can be completed only after service starts.
+                    elseif ($requestedStatus === 'completed') {
+                        if ($lockedConsultation->status !== 'ongoing') {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                'status' => 'Only ongoing consultations can be completed.',
+                            ]);
+                        }
+                    }
+
+                    $fields['status'] = $requestedStatus;
                 }
 
-                if (!$consultation->arrived_at) {
-                    $fields['arrived_at'] = now();
-                }
-            }
-            DB::beginTransaction();
-            $consultation->update($fields);
-            $consultation->attachMedia($request);
+                $lockedConsultation->update($fields);
 
-            DB::commit();
+                // Keep your existing media attachment functionality.
+                $lockedConsultation->attachMedia($request);
+
+                return $lockedConsultation->fresh()
+                    ->load('media', 'user:id,name', 'motorcycle');
+            });
 
             return response()->json([
                 'message' => 'Consultation Updated Successfully',
-                'data' => $consultation->load('media', 'user:id,name', 'motorcycle')
+                'data' => $updatedConsultation,
             ], 200);
 
-        } catch (Exception $e) {
-            DB::rollBack();
-            Log::error("Consultation Update Error: " . $e->getMessage());
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+
+        } catch (\Throwable $e) {
+            Log::error("Consultation Update Error [ID: {$consultation->id}]", [
+                'exception' => $e,
+            ]);
+
             return response()->json([
                 'message' => 'Update Failed',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error',
+                'error' => config('app.debug')
+                    ? $e->getMessage()
+                    : 'Server Error',
             ], 500);
         }
     }
+
 
 
     /**
