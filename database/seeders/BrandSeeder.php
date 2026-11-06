@@ -16,12 +16,18 @@ class BrandSeeder extends Seeder
             ['name' => 'Kawasaki', 'slug' => 'kawasaki'],
             ['name' => 'Rusi', 'slug' => 'rusi'],
             ['name' => 'Nwow', 'slug' => 'nwow'],
-            ['name' => 'CFmoto', 'slug' => 'cfmoto'],
+            ['name' => 'CFMoto', 'slug' => 'cfmoto'],
             ['name' => 'Bajaj', 'slug' => 'bajaj'],
         ];
 
         foreach ($brands as $brand) {
-            Brand::create($brand);
+            Brand::withTrashed()->updateOrCreate(
+                ['slug' => $brand['slug']],
+                [
+                    'name' => $brand['name'],
+                    'deleted_at' => null,
+                ]
+            );
         }
     }
 }

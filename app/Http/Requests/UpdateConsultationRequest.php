@@ -16,21 +16,20 @@ class UpdateConsultationRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // Consultation status transitions
+            'status' => 'sometimes|in:accepted,ongoing,completed',
+            // Required when mechanic starts the service
+            'verification_otp_input' => 'sometimes|required_if:status,ongoing|digits:6',
+            // Mechanic service updates
+            'mechanic_notes' => 'sometimes|nullable|string',
+            'suggested_parts' => 'sometimes|nullable|string',
+            'estimated_repair_costs' => 'sometimes|nullable|numeric|min:0',
             'issue_description' => 'sometimes|string|min:10',
             'consultation_type' => 'sometimes|in:standard,sos',
-            'status' => 'sometimes|in:pending,accepted,ongoing,completed,cancelled',
             'payment_status' => 'sometimes|in:pending,paid,failed',
-            'mechanic_notes' => 'sometimes|nullable|string',
-            'suggested_parts' => 'sometimes|nullable|array',
-            'estimated_repair_costs' => 'sometimes|nullable|numeric',
-            'verification_otp_input' => 'sometimes|string|size:6',
             'latitude' => 'sometimes|nullable|numeric',
             'longitude' => 'sometimes|nullable|numeric',
             'location_name' => 'sometimes|nullable|string',
-            'images' => 'sometimes|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120',
-            'videos' => 'sometimes|array',
-            'videos.*' => 'mimes:mp4,mov,avi|max:20480',
         ];
     }
 }

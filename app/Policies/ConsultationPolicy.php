@@ -37,7 +37,12 @@ class ConsultationPolicy
      */
     public function update(User $user, Consultation $consultation): bool
     {
-        return $user->mechanic && $consultation->mechanic_id === $user->mechanic->id;
+        $mechanic = $user->mechanic;
+
+        return $user->isMechanic()
+            && $mechanic !== null
+            && $mechanic->is_verified
+            && $consultation->mechanic_id === $mechanic->id;
     }
 
     /**
