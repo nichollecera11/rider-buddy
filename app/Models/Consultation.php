@@ -29,7 +29,8 @@ class Consultation extends Model
         'location_name',
         'mechanic_notes',
         'verification_otp',
-        'arrived_at'
+        'verification_otp_created_at',
+        'arrived_at',
 
     ];
 

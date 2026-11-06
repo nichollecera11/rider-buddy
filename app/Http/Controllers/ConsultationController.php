@@ -152,7 +152,7 @@ class ConsultationController extends Controller
                 ];
             });
 
-            if ($result['duplicate']) {
+            if ($result['duplicate'] ?? false) {
                 return response()->json([
                     'message' => 'You already have an unresolved SOS request. Please check its status before submitting another.',
                     'data' => $result['data'],
