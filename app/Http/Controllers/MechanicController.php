@@ -36,7 +36,14 @@ class MechanicController extends Controller
             ],
         ]);
         try {
-            $query = Mechanic::with(['user:id,name', 'media']);
+            $query = Mechanic::query()
+                ->where('is_verified', true)
+                ->where('is_available', true)
+                ->whereHas('user', function ($userQuery) {
+                    $userQuery->where('is_active', true)
+                        ->where('is_banned', false);
+                })
+                ->with(['user:id,name', 'media']);
 
             $hasLocation = isset($validated['lat'], $validated['lng']);
 
@@ -257,7 +264,24 @@ class MechanicController extends Controller
     public function show(Mechanic $mechanic)
     {
         try {
-            $mechanic->load(['user:id,name', 'media'])->makeHidden('emergency_contact');
+            $mechanic->load('user');
+
+            // Only eligible mechanics can be viewed publicly.
+            if (
+                !$mechanic->is_verified ||
+                !$mechanic->is_available ||
+                !$mechanic->user ||
+                !$mechanic->user->isMechanic() ||
+                !$mechanic->user->is_active ||
+                $mechanic->user->is_banned
+            ) {
+                return response()->json([
+                    'message' => 'Mechanic not found or currently unavailable.'
+                ], 404);
+            }
+
+            $mechanic->load(['user:id,name', 'media'])
+                ->makeHidden('emergency_contact');
 
             return response()->json([
                 'message' => 'Mechanic retrieved successfully',

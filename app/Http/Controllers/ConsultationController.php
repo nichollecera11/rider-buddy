@@ -118,9 +118,21 @@ class ConsultationController extends Controller
                     }
                 }
 
-                $mechanic = Mechanic::findOrFail(
-                    $request->input('mechanic_id')
-                );
+                $mechanic = Mechanic::query()
+                    ->where('is_verified', true)
+                    ->where('is_available', true)
+                    ->whereHas('user', function ($query) {
+                        $query->where('role', 'mechanic')
+                            ->where('is_active', true)
+                            ->where('is_banned', false);
+                    })
+                    ->find($request->input('mechanic_id'));
+
+                if (!$mechanic) {
+                    return [
+                        'ineligible_mechanic' => true,
+                    ];
+                }
 
                 $consultation = Consultation::create([
                     ...$request->safe()->except(['images', 'videos']),
@@ -145,6 +157,11 @@ class ConsultationController extends Controller
                     'message' => 'You already have an unresolved SOS request. Please check its status before submitting another.',
                     'data' => $result['data'],
                 ], 409);
+            }
+            if ($result['ineligible_mechanic'] ?? false) {
+                return response()->json([
+                    'message' => 'This mechanic is not verified or is currently unavailable.',
+                ], 422);
             }
 
             $consultation = $result['consultation'];
