@@ -165,5 +165,10 @@ class Consultation extends Model
             ->first();
     }
 
+    public function qrChallenges()
+    {
+        return $this->hasMany(ConsultationQrChallenge::class);
+    }
+
 
 }
