@@ -346,24 +346,54 @@ class ConsultationController extends Controller
      */
     public function destroy(Consultation $consultation)
     {
+        // Only the consultation owner can cancel.
         $this->authorize('delete', $consultation);
 
-        if (!$consultation->isCancellable()) {
-            return response()->json([
-                'message' => 'Cannot cancel consultation. It is already' . $consultation->status
-            ], 409);
-        }
         try {
-            $consultation->cancel();
+            $result = DB::transaction(function () use ($consultation) {
+                // Lock the row so another request cannot change it
+                // while cancellation is being processed.
+                $lockedConsultation = Consultation::whereKey($consultation->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                // Recheck status after acquiring the lock.
+                if (!$lockedConsultation->isCancellable()) {
+                    return [
+                        'cancelled' => false,
+                        'consultation' => $lockedConsultation,
+                    ];
+                }
+
+                $lockedConsultation->cancel();
+
+                return [
+                    'cancelled' => true,
+                    'consultation' => $lockedConsultation,
+                ];
+            });
+
+            if (!$result['cancelled']) {
+                return response()->json([
+                    'message' => 'Cannot cancel consultation. It is already '
+                        . $result['consultation']->status,
+                ], 409);
+            }
+
             return response()->json([
-                'message' => 'Consultation Succesfully Deleted',
-                'data' => $consultation
+                'message' => 'Consultation Successfully Deleted',
+                'data' => $result['consultation'],
             ], 200);
+
         } catch (Exception $e) {
-            Log::error("Consultation Delete Error[{$consultation->id}]:" . $e->getMessage());
+            Log::error(
+                "Consultation Delete Error[{$consultation->id}]: "
+                . $e->getMessage()
+            );
+
             return response()->json([
                 'message' => 'Failed to Cancel Consultation',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error',
             ], 500);
         }
     }

@@ -317,4 +317,72 @@ class ConsultationTest extends TestCase
             'arrived_at' => null,
         ]);
     }
+
+
+    /**
+     * A rider can cancel their own pending consultation.
+     */
+    public function test_rider_can_cancel_pending_consultation(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle suddenly stopped.',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($rider, 'sanctum')
+            ->deleteJson("/api/consultations/{$consultation->id}");
+
+        $response->assertOk();
+
+        $this->assertSoftDeleted('consultations', [
+            'id' => $consultation->id,
+        ]);
+    }
+
+    /**
+     * A rider cannot cancel an accepted consultation.
+     */
+    public function test_rider_cannot_cancel_accepted_consultation(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle suddenly stopped.',
+            'status' => 'accepted',
+        ]);
+
+        $response = $this->actingAs($rider, 'sanctum')
+            ->deleteJson("/api/consultations/{$consultation->id}");
+
+        $response->assertStatus(409);
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'accepted',
+            'deleted_at' => null,
+        ]);
+    }
+
 }
