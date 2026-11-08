@@ -8,6 +8,8 @@ use App\Models\User;
 use App\Models\UserMotorcycle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 class ConsultationTest extends TestCase
 {
@@ -318,6 +320,78 @@ class ConsultationTest extends TestCase
         ]);
     }
 
+
+
+
+    /**
+     * A mechanic cannot modify a completed consultation or attach new media.
+     */
+    public function test_mechanic_cannot_modify_completed_consultation(): void
+    {
+        Storage::fake('public');
+
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle engine suddenly stopped.',
+            'status' => 'completed',
+            'mechanic_notes' => 'Original repair notes.',
+            'suggested_parts' => ['Spark plug'],
+            'estimated_repair_costs' => 500,
+        ]);
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->putJson("/api/consultations/{$consultation->id}", [
+                'mechanic_notes' => 'Changed repair notes.',
+                'estimated_repair_costs' => 1000,
+                'images' => [
+                    UploadedFile::fake()->create(
+                        'repair.jpg',
+                        100,
+                        'image/jpeg'
+                    ),
+                ],
+                'videos' => [
+                    UploadedFile::fake()->create(
+                        'repair.mp4',
+                        100,
+                        'video/mp4'
+                    ),
+                ],
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('status');
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'completed',
+            'mechanic_notes' => 'Original repair notes.',
+            'estimated_repair_costs' => 500,
+        ]);
+
+        $this->assertDatabaseCount('consultations_media', 0);
+
+        $this->assertSame(
+            ['Spark plug'],
+            $consultation->fresh()->suggested_parts
+        );
+
+        $this->assertSame([], Storage::disk('public')->allFiles('consultation/media'));
+    }
 
     /**
      * A rider can cancel their own pending consultation.

@@ -242,6 +242,13 @@ class ConsultationController extends Controller
                 // Recheck authorization against the locked record.
                 $this->authorize('update', $lockedConsultation);
 
+                // Completed consultations are permanently read-only.
+                if ($lockedConsultation->status === 'completed') {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'status' => 'Completed consultations cannot be modified.',
+                    ]);
+                }
+
                 $validated = $request->validated();
                 $requestedStatus = $validated['status'] ?? null;
 
