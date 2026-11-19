@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Auth\Access\AuthorizationException;
 
 
 
@@ -100,6 +101,19 @@ class ConsultationController extends Controller
                     ->where('id', $userId)
                     ->lockForUpdate()
                     ->first();
+                // Recheck motorcycle ownership and availability inside the transaction.
+                $motorcycleExists = DB::table('user_motorcycles')
+                    ->where('id', $request->input('user_motorcycle_id'))
+                    ->where('user_id', $userId)
+                    ->whereNull('deleted_at')
+                    ->exists();
+
+                if (!$motorcycleExists) {
+                    return [
+                        'motorcycle_unavailable' => true,
+                    ];
+                }
+
 
                 // Prevent a rider from creating multiple unresolved SOS requests.
                 if ($request->input('consultation_type') === 'sos') {
@@ -151,6 +165,12 @@ class ConsultationController extends Controller
                     'consultation' => $consultation,
                 ];
             });
+
+            if ($result['motorcycle_unavailable'] ?? false) {
+                return response()->json([
+                    'message' => 'Selected motorcycle is no longer available. Please refresh your garage and try again.',
+                ], 422);
+            }
 
             if ($result['duplicate'] ?? false) {
                 return response()->json([
@@ -303,15 +323,6 @@ class ConsultationController extends Controller
                         $fields['arrived_at'] = now();
                     }
 
-                    // A consultation can be completed only after service starts.
-                    elseif ($requestedStatus === 'completed') {
-                        if ($lockedConsultation->status !== 'ongoing') {
-                            throw \Illuminate\Validation\ValidationException::withMessages([
-                                'status' => 'Only ongoing consultations can be completed.',
-                            ]);
-                        }
-                    }
-
                     $fields['status'] = $requestedStatus;
                 }
 
@@ -404,6 +415,124 @@ class ConsultationController extends Controller
             ], 500);
         }
     }
+
+
+    public function complete(Request $request, Consultation $consultation)
+    {
+        $this->authorize('update', $consultation);
+
+        try {
+            $result = DB::transaction(function () use ($request, $consultation) {
+                $lockedConsultation = Consultation::whereKey($consultation->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                // Recheck authorization after acquiring the lock.
+                $this->authorize('update', $lockedConsultation);
+
+                $user = $request->user();
+                $mechanic = $user->mechanic;
+
+                // Confirm that the mechanic account is eligible.
+                if (
+                    !$user->is_active ||
+                    $user->is_banned ||
+                    !$mechanic ||
+                    !$mechanic->is_verified
+                ) {
+                    return [
+                        'completed' => false,
+                        'status' => 403,
+                        'message' => 'Your account is not authorized to complete consultations.',
+                    ];
+                }
+
+                // Prevent duplicate or invalid completion.
+                if ($lockedConsultation->status === 'completed') {
+                    return [
+                        'completed' => false,
+                        'status' => 409,
+                        'message' => 'This consultation has already been completed.',
+                    ];
+                }
+
+                if ($lockedConsultation->status !== 'ongoing') {
+                    return [
+                        'completed' => false,
+                        'status' => 422,
+                        'message' => 'Only ongoing consultations can be completed.',
+                    ];
+                }
+
+                // Confirm that the motorcycle still belongs to the rider.
+                $motorcycleBelongsToRider = $lockedConsultation->motorcycle()
+                    ->where('user_id', $lockedConsultation->user_id)
+                    ->exists();
+
+                if (!$motorcycleBelongsToRider) {
+                    return [
+                        'completed' => false,
+                        'status' => 422,
+                        'message' => 'The consultation motorcycle does not belong to the rider.',
+                    ];
+                }
+
+                // Require at least one valid, mechanic-verified service record.
+                $hasVerifiedMaintenanceLog = $lockedConsultation->maintenanceLogs()
+                    ->where('mechanic_id', $lockedConsultation->mechanic_id)
+                    ->where('user_motorcycle_id', $lockedConsultation->user_motorcycle_id)
+                    ->where('is_verified_by_mechanic', true)
+                    ->exists();
+
+                if (!$hasVerifiedMaintenanceLog) {
+                    return [
+                        'completed' => false,
+                        'status' => 422,
+                        'message' => 'A verified maintenance log is required before completing this consultation.',
+                    ];
+                }
+
+                // Complete the service without changing payment status.
+                $lockedConsultation->update([
+                    'status' => 'completed',
+                ]);
+
+                return [
+                    'completed' => true,
+                    'consultation' => $lockedConsultation->fresh(),
+                ];
+            });
+
+            if (!$result['completed']) {
+                return response()->json([
+                    'message' => $result['message'],
+                ], $result['status']);
+            }
+
+            return response()->json([
+                'message' => 'Consultation completed successfully.',
+                'data' => $result['consultation'],
+            ], 200);
+
+        } catch (AuthorizationException $e) {
+            return response()->json([
+                'message' => 'You are not authorized to complete this consultation.',
+            ], 403);
+
+        } catch (Exception $e) {
+            Log::error(
+                "Consultation Completion Error[{$consultation->id}]: "
+                . $e->getMessage()
+            );
+
+            return response()->json([
+                'message' => 'Failed to complete consultation.',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error',
+            ], 500);
+        }
+    }
+
+
     public function mechanicRequests()
     {
         try {

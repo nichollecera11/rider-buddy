@@ -10,6 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use App\Models\MaintenanceLog;
 
 class ConsultationTest extends TestCase
 {
@@ -459,4 +460,682 @@ class ConsultationTest extends TestCase
         ]);
     }
 
+    /**
+     * An assigned mechanic can complete an ongoing consultation
+     * when a verified maintenance log exists.
+     */
+    public function test_mechanic_can_complete_consultation_with_verified_maintenance_log(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle engine suddenly stopped.',
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+
+        MaintenanceLog::factory()->create([
+            'consultation_id' => $consultation->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'mechanic_id' => $mechanic->id,
+            'is_verified_by_mechanic' => true,
+        ]);
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->postJson("/api/consultations/{$consultation->id}/complete");
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', 'completed')
+            ->assertJsonPath('data.payment_status', 'pending');
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'completed',
+            'payment_status' => 'pending',
+        ]);
+    }
+
+
+    /**
+     * A mechanic cannot complete a consultation without
+     * a verified maintenance log.
+     */
+    public function test_mechanic_cannot_complete_consultation_without_verified_maintenance_log(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle engine suddenly stopped.',
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->postJson("/api/consultations/{$consultation->id}/complete");
+
+        $response->assertUnprocessable()
+            ->assertJson([
+                'message' => 'A verified maintenance log is required before completing this consultation.',
+            ]);
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+    }
+
+
+    /**
+     * An unassigned mechanic cannot complete another mechanic's consultation.
+     */
+    public function test_unassigned_mechanic_cannot_complete_consultation(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $assignedMechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $otherMechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $assignedMechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle engine suddenly stopped.',
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($otherMechanic->user, 'sanctum')
+            ->postJson("/api/consultations/{$consultation->id}/complete");
+
+        $response->assertForbidden();
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'mechanic_id' => $assignedMechanic->id,
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+    }
+
+
+    /**
+     * An unverified mechanic cannot complete a consultation.
+     */
+    public function test_unverified_mechanic_cannot_complete_consultation(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->unverified()
+            ->available()
+            ->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle engine suddenly stopped.',
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+
+        MaintenanceLog::factory()->create([
+            'consultation_id' => $consultation->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'mechanic_id' => $mechanic->id,
+            'is_verified_by_mechanic' => true,
+        ]);
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->postJson("/api/consultations/{$consultation->id}/complete");
+
+        $response->assertForbidden();
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+    }
+
+
+    /**
+     * An inactive mechanic cannot complete a consultation.
+     */
+    public function test_inactive_mechanic_cannot_complete_consultation(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $mechanic->user()->update([
+            'is_active' => false,
+        ]);
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle engine suddenly stopped.',
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+
+        MaintenanceLog::factory()->create([
+            'consultation_id' => $consultation->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'mechanic_id' => $mechanic->id,
+            'is_verified_by_mechanic' => true,
+        ]);
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->postJson("/api/consultations/{$consultation->id}/complete");
+
+        $response->assertForbidden();
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+    }
+
+
+    /**
+     * A banned mechanic cannot complete a consultation.
+     */
+    public function test_banned_mechanic_cannot_complete_consultation(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle engine suddenly stopped.',
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+
+        MaintenanceLog::factory()->create([
+            'consultation_id' => $consultation->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'mechanic_id' => $mechanic->id,
+            'is_verified_by_mechanic' => true,
+        ]);
+
+        $mechanic->user()->update([
+            'is_banned' => true,
+        ]);
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->postJson("/api/consultations/{$consultation->id}/complete");
+
+        $response->assertForbidden();
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+    }
+
+
+    /**
+     * An accepted consultation cannot be completed before service starts.
+     */
+    public function test_mechanic_cannot_complete_accepted_consultation(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle engine suddenly stopped.',
+            'status' => 'accepted',
+            'payment_status' => 'pending',
+        ]);
+
+        MaintenanceLog::factory()->create([
+            'consultation_id' => $consultation->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'mechanic_id' => $mechanic->id,
+            'is_verified_by_mechanic' => true,
+        ]);
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->postJson("/api/consultations/{$consultation->id}/complete");
+
+        $response->assertUnprocessable()
+            ->assertJson([
+                'message' => 'Only ongoing consultations can be completed.',
+            ]);
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'accepted',
+            'payment_status' => 'pending',
+        ]);
+    }
+
+
+    /**
+     * A completed consultation cannot be completed again.
+     */
+    public function test_mechanic_cannot_complete_consultation_twice(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle engine suddenly stopped.',
+            'status' => 'completed',
+            'payment_status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->postJson("/api/consultations/{$consultation->id}/complete");
+
+        $response->assertStatus(409)
+            ->assertJson([
+                'message' => 'This consultation has already been completed.',
+            ]);
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'completed',
+            'payment_status' => 'pending',
+        ]);
+    }
+
+
+    /**
+     * A consultation cannot be completed if its motorcycle
+     * no longer belongs to the consultation rider.
+     */
+    public function test_mechanic_cannot_complete_consultation_with_wrong_motorcycle_owner(): void
+    {
+        $rider = User::factory()->create();
+        $anotherRider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle engine suddenly stopped.',
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+
+        MaintenanceLog::factory()->create([
+            'consultation_id' => $consultation->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'mechanic_id' => $mechanic->id,
+            'is_verified_by_mechanic' => true,
+        ]);
+
+        // Simulate an ownership inconsistency.
+        $motorcycle->update([
+            'user_id' => $anotherRider->id,
+        ]);
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->postJson("/api/consultations/{$consultation->id}/complete");
+
+        $response->assertUnprocessable()
+            ->assertJson([
+                'message' => 'The consultation motorcycle does not belong to the rider.',
+            ]);
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+    }
+
+
+    /**
+     * An unverified maintenance log cannot satisfy
+     * the consultation completion requirement.
+     */
+    public function test_mechanic_cannot_complete_consultation_with_unverified_maintenance_log(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle engine suddenly stopped.',
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+
+        MaintenanceLog::factory()->create([
+            'consultation_id' => $consultation->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'mechanic_id' => $mechanic->id,
+            'is_verified_by_mechanic' => false,
+        ]);
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->postJson("/api/consultations/{$consultation->id}/complete");
+
+        $response->assertUnprocessable()
+            ->assertJson([
+                'message' => 'A verified maintenance log is required before completing this consultation.',
+            ]);
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+    }
+
+    /**
+     * A soft-deleted maintenance log cannot authorize consultation completion.
+     */
+    public function test_mechanic_cannot_complete_consultation_with_only_soft_deleted_maintenance_log(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle engine suddenly stopped.',
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+
+        $maintenanceLog = MaintenanceLog::factory()->create([
+            'consultation_id' => $consultation->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'mechanic_id' => $mechanic->id,
+            'is_verified_by_mechanic' => true,
+        ]);
+
+        $maintenanceLog->delete();
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->postJson("/api/consultations/{$consultation->id}/complete");
+
+        $response->assertUnprocessable()
+            ->assertJson([
+                'message' => 'A verified maintenance log is required before completing this consultation.',
+            ]);
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'ongoing',
+            'payment_status' => 'pending',
+        ]);
+    }
+
+    public function test_inactive_mechanic_cannot_accept_pending_consultation(): void
+    {
+        $rider = User::factory()->create();
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $mechanic->user()->update([
+            'is_active' => false,
+        ]);
+
+        $consultation = Consultation::factory()->create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->putJson("/api/consultations/{$consultation->id}", [
+                'status' => 'accepted',
+            ]);
+
+        $response->assertForbidden();
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_banned_mechanic_cannot_accept_pending_consultation(): void
+    {
+        $rider = User::factory()->create();
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $mechanic->user()->update([
+            'is_banned' => true,
+        ]);
+
+        $consultation = Consultation::factory()->create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->putJson("/api/consultations/{$consultation->id}", [
+                'status' => 'accepted',
+            ]);
+
+        $response->assertForbidden();
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'pending',
+        ]);
+    }
+    public function test_inactive_mechanic_cannot_start_accepted_consultation(): void
+    {
+        $rider = User::factory()->create();
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $consultation = Consultation::factory()->create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'status' => 'accepted',
+            'verification_otp' => '123456',
+            'verification_otp_created_at' => now(),
+        ]);
+
+        $mechanic->user()->update([
+            'is_active' => false,
+        ]);
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->putJson("/api/consultations/{$consultation->id}", [
+                'status' => 'ongoing',
+                'verification_otp' => '123456',
+            ]);
+
+        $response->assertForbidden();
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'accepted',
+            'arrived_at' => null,
+        ]);
+    }
+    public function test_banned_mechanic_cannot_start_accepted_consultation(): void
+    {
+        $rider = User::factory()->create();
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        $consultation = Consultation::factory()->create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'status' => 'accepted',
+            'verification_otp' => '123456',
+            'verification_otp_created_at' => now(),
+        ]);
+
+        $mechanic->user()->update([
+            'is_banned' => true,
+        ]);
+
+        $response = $this->actingAs($mechanic->user, 'sanctum')
+            ->putJson("/api/consultations/{$consultation->id}", [
+                'status' => 'ongoing',
+                'verification_otp' => '123456',
+            ]);
+
+        $response->assertForbidden();
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'accepted',
+            'arrived_at' => null,
+        ]);
+    }
 }

@@ -171,5 +171,10 @@ class Consultation extends Model
         return $this->hasMany(ConsultationQrChallenge::class);
     }
 
+    public function maintenanceLogs()
+    {
+        return $this->hasMany(MaintenanceLog::class);
+    }
+
 
 }

@@ -17,7 +17,7 @@ class UpdateConsultationRequest extends FormRequest
     {
         return [
             // Consultation status transitions
-            'status' => 'sometimes|in:accepted,ongoing,completed',
+            'status' => 'sometimes|in:accepted,ongoing',
             // Required when mechanic starts the service
             'verification_otp_input' => 'sometimes|required_if:status,ongoing|digits:6',
             // Mechanic service updates
@@ -26,7 +26,6 @@ class UpdateConsultationRequest extends FormRequest
             'estimated_repair_costs' => 'sometimes|nullable|numeric|min:0',
             'issue_description' => 'sometimes|string|min:10',
             'consultation_type' => 'sometimes|in:standard,sos',
-            'payment_status' => 'sometimes|in:pending,paid,failed',
             'latitude' => 'sometimes|nullable|numeric',
             'longitude' => 'sometimes|nullable|numeric',
             'location_name' => 'sometimes|nullable|string',

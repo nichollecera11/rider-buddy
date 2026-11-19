@@ -134,26 +134,71 @@ class UserMotorcycleController extends Controller
         }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(UserMotorcycle $userMotorcycle)
     {
-
         $this->authorize('delete', $userMotorcycle);
 
+        $userId = auth()->id();
+
         try {
-            $userMotorcycle->delete();
+            $result = DB::transaction(function () use ($userMotorcycle, $userId) {
+                // Coordinate with consultation creation for this rider.
+                DB::table('users')
+                    ->where('id', $userId)
+                    ->lockForUpdate()
+                    ->first();
+
+                // Recheck motorcycle ownership and availability after locking.
+                $motorcycle = UserMotorcycle::query()
+                    ->where('id', $userMotorcycle->id)
+                    ->where('user_id', $userId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$motorcycle) {
+                    return 'unavailable';
+                }
+
+                // Prevent deletion while an unresolved consultation exists.
+                $hasUnresolvedConsultation = $motorcycle->consultations()
+                    ->whereIn('status', ['pending', 'accepted', 'ongoing'])
+                    ->exists();
+
+                if ($hasUnresolvedConsultation) {
+                    return 'unresolved';
+                }
+
+                $motorcycle->delete();
+
+                return 'deleted';
+            });
+
+            if ($result === 'unavailable') {
+                return response()->json([
+                    'message' => 'Motorcycle not found or no longer available.'
+                ], 404);
+            }
+
+            if ($result === 'unresolved') {
+                return response()->json([
+                    'message' => 'Motorcycle cannot be deleted while an unresolved consultation exists.'
+                ], 409);
+            }
+
             return response()->json([
                 'message' => 'Motorcycle Deleted Successfully',
                 'data' => $userMotorcycle->id
             ], 200);
+
         } catch (Exception $e) {
             Log::error("Motorcycle Delete error: " . $e->getMessage());
+
             return response()->json([
                 'message' => 'Motorcycle Delete Failed',
                 'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
     }
+
+
 }

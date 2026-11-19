@@ -71,12 +71,18 @@ Route::group(['middleware' => ['auth:sanctum', 'not.banned']], function () {
         'consultations/{consultation}/qr-challenge/confirm',
         [ConsultationQrController::class, 'confirmArrival']
     );
+    Route::post(
+        'consultations/{consultation}/complete',
+        [ConsultationController::class, 'complete']
+    );
     Route::get('mechanic/consultations', [ConsultationController::class, 'mechanicRequests']);
     // Para sa pag-delete o pag-manage og tagsa-tagsa nga file
     Route::apiResource('consultation-media', ConsultationMediaController::class)->only(['destroy']);
     // Diagnostic Reports (Shallow Nested Resource)
     Route::apiResource('consultations.diagnostic-reports', DiagnosticReportController::class)->shallow();
-    Route::apiResource('maintenance-logs', MaintenanceLogController::class);
+    Route::apiResource('maintenance-logs', MaintenanceLogController::class)
+        ->only(['index', 'store', 'show']);
+
 
     // --- RIDER ROUTES ---
     // Mag-submit og documents para sa iyang motor, ug i-check ang status sa iyang compliance

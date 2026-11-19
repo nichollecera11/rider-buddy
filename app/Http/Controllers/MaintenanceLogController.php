@@ -3,13 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreMaintenanceLogRequest;
-use App\Http\Requests\UpdateMaintenanceLogRequest;
 use App\Models\MaintenanceLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
 use App\Models\Consultation;
+
 
 class MaintenanceLogController extends Controller
 {
@@ -50,78 +50,80 @@ class MaintenanceLogController extends Controller
 
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(StoreMaintenanceLogRequest $request)
     {
-
         $this->authorize('create', MaintenanceLog::class);
 
         $fields = $request->validated();
 
-        $consultation = Consultation::findOrFail($fields['consultation_id']);
-        $mechanic = auth()->user()->mechanic;
+        return DB::transaction(function () use ($request, $fields) {
 
-        if (!$mechanic || $consultation->mechanic_id !== $mechanic->id) {
-            return response()->json([
-                'message' => 'Unauthorized. Please contact your administrator'
-            ], 403);
-        }
+            $user = $request->user();
+            $mechanic = $user->mechanic;
 
-        if ($consultation->status !== 'ongoing') {
-            return response()->json([
-                'message' => 'Service must be ongoing before you can proceed'
-            ], 422);
-        }
-        DB::beginTransaction();
+            // Confirm that the account and mechanic profile are eligible.
+            if (
+                !$user->isMechanic() ||
+                !$mechanic ||
+                !$mechanic->is_verified ||
+                !$user->is_active ||
+                $user->is_banned
+            ) {
+                return response()->json([
+                    'message' => 'Your account is not authorized to create maintenance records.'
+                ], 403);
+            }
 
-        try {
+            // Lock the consultation while checking and creating its maintenance log.
+            $consultation = Consultation::whereKey($fields['consultation_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            // Only the mechanic assigned to this consultation can record the service.
+            if ($consultation->mechanic_id !== $mechanic->id) {
+                return response()->json([
+                    'message' => 'You are not assigned to this consultation.'
+                ], 403);
+            }
+
+            // Service records can only be added while the consultation is ongoing.
+            if ($consultation->status !== 'ongoing') {
+                return response()->json([
+                    'message' => 'The consultation must be ongoing before adding a maintenance log.'
+                ], 422);
+            }
+
+            // Confirm that the consultation motorcycle belongs to the consultation rider.
+            $motorcycleBelongsToRider = $consultation->motorcycle()
+                ->where('user_id', $consultation->user_id)
+                ->exists();
+
+            if (!$motorcycleBelongsToRider) {
+                return response()->json([
+                    'message' => 'The consultation motorcycle does not belong to the rider.'
+                ], 422);
+            }
+
             $log = MaintenanceLog::create([
+                'consultation_id' => $consultation->id,
                 'user_motorcycle_id' => $consultation->user_motorcycle_id,
                 'mechanic_id' => $mechanic->id,
                 'service_type' => $fields['service_type'],
-                'description' => $fields['description'],
+                'description' => $fields['description'] ?? null,
                 'odometer_reading' => $fields['odometer_reading'],
                 'service_date' => now(),
-                'cost' => $fields['cost'],
-                'is_verified_by_mechanic' => true
-
+                'cost' => $fields['cost'] ?? 0,
+                'is_verified_by_mechanic' => true,
             ]);
 
-            $consultation->update([
-                'status' => 'completed',
-                'payment_status' => 'paid',
-                'estimated_repair_costs' => $fields['cost']
-            ]);
-            DB::commit();
             return response()->json([
-                'message' => 'Service Completed and Logged Successfully',
+                'message' => 'Maintenance log created successfully.',
                 'log' => $log,
-                'consultation' => $consultation
+                'consultation' => $consultation->fresh(),
             ], 201);
-        } catch (Exception $e) {
-            DB::rollBack();
-            Log::error("Maintenace Log Error: " . $e->getMessage());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to Complete Service, Make sure you Logged Successfully.',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
-            ], 500);
-        }
+        });
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(MaintenanceLog $maintenanceLog)
     {
         $this->authorize('view', $maintenanceLog);
@@ -140,75 +142,5 @@ class MaintenanceLogController extends Controller
                 'error' => env('APP.DEBUG') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(MaintenanceLog $maintenanceLog)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(UpdateMaintenanceLogRequest $request, MaintenanceLog $maintenanceLog)
-    {
-        $this->authorize('update', $maintenanceLog);
-        DB::beginTransaction();
-        try {
-            $maintenanceLog->update($request->validated());
-            DB::commit();
-
-            return response()->json([
-                'message' => 'Maintenance Log Update Successfully',
-                'data' => $maintenanceLog->load(['motorcycle.brand', 'mechanic.user:id,name'])
-            ], 200);
-
-        } catch (Exception $e) {
-            DB::rollBack();
-            Log::error("Maintenance Log Update Error: " . $e->getMessage());
-            return response()->json([
-                'message' => 'Failed to Update Maintenance Log',
-                'error' => config('app.debug') ? $e->getMessage() : 'Server Error'
-            ], 500);
-        }
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(MaintenanceLog $maintenanceLog)
-    {
-        $this->authorize('delete', $maintenanceLog);
-
-        if (!$maintenanceLog) {
-            return response()->json([
-                'message' => 'Maintenance Log not Found'
-            ], 404);
-        }
-        if (auth()->user()->role !== 'admin') {
-            return response()->json([
-                'message' => 'Unauthorized, Only Administrator Can Delete Maintenance Logs'
-            ], 403);
-        }
-
-        DB::beginTransaction();
-        try {
-            $maintenanceLog->delete();
-            DB::commit();
-            return response()->json([
-                'message' => 'Service Record Successfully Deleted'
-            ], 200);
-        } catch (Exception $e) {
-            DB::rollBack();
-            Log::error("Maintenance Log Delete Error: " . $e->getMessage());
-            return response()->json([
-                'message' => 'Delete Failed',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
-            ], 500);
-        }
-
     }
 }

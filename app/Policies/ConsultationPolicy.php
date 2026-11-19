@@ -40,6 +40,8 @@ class ConsultationPolicy
         $mechanic = $user->mechanic;
 
         return $user->isMechanic()
+            && $user->is_active
+            && !$user->is_banned
             && $mechanic !== null
             && $mechanic->is_verified
             && $consultation->mechanic_id === $mechanic->id;
