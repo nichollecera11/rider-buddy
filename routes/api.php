@@ -55,6 +55,10 @@ Route::group(['middleware' => ['auth:sanctum', 'not.banned']], function () {
     Route::apiResource('reviews', ReviewController::class)->except(['index', 'show']);
     Route::apiResource('user-motorcycles', UserMotorcycleController::class);
     Route::apiResource('consultations', ConsultationController::class);
+    Route::patch(
+        'consultations/{consultation}/location',
+        [ConsultationController::class, 'updateLocation']
+    );
     Route::post(
         'consultations/{consultation}/qr-challenge',
         [ConsultationQrController::class, 'store']

@@ -48,6 +48,15 @@ class ConsultationPolicy
     }
 
     /**
+     * Determine whether the rider can update the breakdown location.
+     */
+    public function updateLocation(User $user, Consultation $consultation): bool
+    {
+        return $consultation->user_id === $user->id
+            && in_array($consultation->status, ['pending', 'accepted'], true);
+    }
+
+    /**
      * Determine whether the user can delete the model.
      */
     public function delete(User $user, Consultation $consultation): bool

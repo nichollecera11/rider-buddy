@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Auth\Access\AuthorizationException;
+use App\Http\Requests\UpdateConsultationLocationRequest;
 
 
 
@@ -84,7 +85,6 @@ class ConsultationController extends Controller
             ], 500);
         }
     }
-
     /**
      * Store a newly created resource in storage.
      */
@@ -212,8 +212,6 @@ class ConsultationController extends Controller
             ], 500);
         }
     }
-
-
     /**
      * Display the specified resource.
      */
@@ -241,12 +239,9 @@ class ConsultationController extends Controller
             ], 500);
         }
     }
-
-
     /**
      * Update the specified resource in storage.
      */
-
     public function update(UpdateConsultationRequest $request, Consultation $consultation)
     {
         $this->authorize('update', $consultation);
@@ -296,31 +291,11 @@ class ConsultationController extends Controller
                         }
                     }
 
-                    // Starting service requires the rider's valid OTP.
+                    // Service can only start after rider-confirmed QR arrival.
                     elseif ($requestedStatus === 'ongoing') {
-                        if ($lockedConsultation->status !== 'accepted') {
-                            throw \Illuminate\Validation\ValidationException::withMessages([
-                                'status' => 'Only accepted consultations can be started.',
-                            ]);
-                        }
-
-                        $otp = $validated['verification_otp_input'] ?? null;
-
-                        if (!$otp) {
-                            throw \Illuminate\Validation\ValidationException::withMessages([
-                                'verification_otp_input' => 'Rider OTP is required to start the service.',
-                            ]);
-                        }
-
-                        [$valid, $error] = $lockedConsultation->verifyOtp($otp);
-
-                        if (!$valid) {
-                            throw \Illuminate\Validation\ValidationException::withMessages([
-                                'verification_otp_input' => $error,
-                            ]);
-                        }
-
-                        $fields['arrived_at'] = now();
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'status' => 'Service can only start after the rider confirms QR arrival verification.',
+                        ]);
                     }
 
                     $fields['status'] = $requestedStatus;
@@ -328,7 +303,7 @@ class ConsultationController extends Controller
 
                 $lockedConsultation->update($fields);
 
-                // Keep your existing media attachment functionality.
+                // Preserve existing media attachment functionality.
                 $lockedConsultation->attachMedia($request);
 
                 return $lockedConsultation->fresh()
@@ -356,9 +331,6 @@ class ConsultationController extends Controller
             ], 500);
         }
     }
-
-
-
     /**
      * Remove the specified resource from storage.
      */
@@ -416,6 +388,121 @@ class ConsultationController extends Controller
         }
     }
 
+    /**
+     * Update the rider-reported breakdown location.
+     */
+    public function updateLocation(
+        UpdateConsultationLocationRequest $request,
+        Consultation $consultation
+    ) {
+        $this->authorize('updateLocation', $consultation);
+
+        try {
+            $updatedConsultation = DB::transaction(function () use ($request, $consultation) {
+
+                // Lock consultation to prevent simultaneous status/location changes.
+                $lockedConsultation = Consultation::whereKey($consultation->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                // Recheck ownership and status against the locked record.
+                $this->authorize('updateLocation', $lockedConsultation);
+
+                $validated = $request->validated();
+
+                $latitude = round((float) $validated['latitude'], 8);
+                $longitude = round((float) $validated['longitude'], 8);
+                $now = now();
+
+                // Check if an unconfirmed QR is still active.
+                $hasActiveQr = $lockedConsultation->qrChallenges()
+                    ->whereNull('confirmed_at')
+                    ->whereNull('revoked_at')
+                    ->where(function ($query) use ($now) {
+                        $query->where(function ($query) use ($now) {
+                            $query->whereNull('scanned_at')
+                                ->where('expires_at', '>', $now);
+                        })->orWhere(function ($query) use ($now) {
+                            $query->whereNotNull('scanned_at')
+                                ->where('confirmation_expires_at', '>', $now);
+                        });
+                    })
+                    ->exists();
+
+                $oldLatitude = $lockedConsultation->latitude;
+                $oldLongitude = $lockedConsultation->longitude;
+
+                $shouldRevokeQr = false;
+                $keepOriginalCoordinates = false;
+
+                if ($hasActiveQr) {
+                    if ($oldLatitude === null || $oldLongitude === null) {
+                        // No reliable reference coordinates.
+                        $shouldRevokeQr = true;
+                    } else {
+                        $distance = $this->calculateDistanceInMeters(
+                            (float) $oldLatitude,
+                            (float) $oldLongitude,
+                            $latitude,
+                            $longitude
+                        );
+
+                        if ($distance > 50) {
+                            $shouldRevokeQr = true;
+                        } else {
+                            // Preserve original coordinates to prevent cumulative GPS drift.
+                            $keepOriginalCoordinates = true;
+                        }
+                    }
+                }
+
+                $lockedConsultation->update([
+                    'latitude' => $keepOriginalCoordinates
+                        ? $oldLatitude
+                        : $latitude,
+                    'longitude' => $keepOriginalCoordinates
+                        ? $oldLongitude
+                        : $longitude,
+                    'location_name' => array_key_exists('location_name', $validated)
+                        ? $validated['location_name']
+                        : $lockedConsultation->location_name,
+                ]);
+
+                // Revoke unconfirmed QR challenges when movement exceeds 50 meters.
+                if ($shouldRevokeQr) {
+                    $lockedConsultation->qrChallenges()
+                        ->whereNull('confirmed_at')
+                        ->whereNull('revoked_at')
+                        ->update([
+                            'revoked_at' => $now,
+                            'updated_at' => $now,
+                        ]);
+                }
+
+                return $lockedConsultation->fresh();
+            });
+
+            return response()->json([
+                'message' => 'Breakdown location updated successfully.',
+                'data' => $updatedConsultation,
+            ], 200);
+
+        } catch (AuthorizationException $e) {
+            throw $e;
+
+        } catch (\Throwable $e) {
+            Log::error("Consultation Location Update Error [ID: {$consultation->id}]", [
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'message' => 'Location update failed.',
+                'error' => config('app.debug')
+                    ? $e->getMessage()
+                    : 'Server Error',
+            ], 500);
+        }
+    }
 
     public function complete(Request $request, Consultation $consultation)
     {
@@ -560,5 +647,34 @@ class ConsultationController extends Controller
                 'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
+    }
+    /**
+     * Calculate the distance between two GPS coordinates in meters.
+     */
+    private function calculateDistanceInMeters(
+        float $lat1,
+        float $lon1,
+        float $lat2,
+        float $lon2
+    ): float {
+        $earthRadius = 6371000; // Earth's average radius in meters.
+
+        $latDifference = deg2rad($lat2 - $lat1);
+        $lonDifference = deg2rad($lon2 - $lon1);
+
+        $a = sin($latDifference / 2) ** 2
+            + cos(deg2rad($lat1))
+            * cos(deg2rad($lat2))
+            * sin($lonDifference / 2) ** 2;
+
+        // Prevent floating-point precision issues.
+        $a = min(1, max(0, $a));
+
+        $centralAngle = 2 * atan2(
+            sqrt($a),
+            sqrt(1 - $a)
+        );
+
+        return $earthRadius * $centralAngle;
     }
 }

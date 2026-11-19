@@ -266,7 +266,62 @@ class ConsultationTest extends TestCase
                 'verification_otp_input' => $otp,
             ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('verification_otp_input');
+            ->assertJsonValidationErrors('status');
+
+        // Consultation must remain accepted.
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultationId,
+            'status' => 'accepted',
+            'arrived_at' => null,
+        ]);
+    }
+
+    /**
+     * A correct, unexpired OTP cannot bypass QR arrival confirmation.
+     */
+    public function test_valid_otp_cannot_bypass_qr_arrival_confirmation(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()
+            ->verified()
+            ->available()
+            ->create();
+
+        // Rider creates the SOS consultation.
+        $response = $this->actingAs($rider, 'sanctum')
+            ->postJson('/api/consultations', [
+                'mechanic_id' => $mechanic->id,
+                'user_motorcycle_id' => $motorcycle->id,
+                'consultation_type' => 'sos',
+                'issue_description' => 'My motorcycle engine suddenly stopped.',
+            ]);
+
+        $response->assertCreated();
+
+        $consultationId = $response->json('data.id');
+        $otp = $response->json('data.verification_otp');
+
+        // Simulate mechanic acceptance with a valid, unexpired OTP.
+        $consultation = Consultation::findOrFail($consultationId);
+
+        $consultation->forceFill([
+            'status' => 'accepted',
+            'verification_otp_created_at' => now()->subSeconds(10),
+        ])->save();
+
+        // Even the correct OTP cannot bypass QR confirmation.
+        $this->actingAs($mechanic->user, 'sanctum')
+            ->putJson("/api/consultations/{$consultationId}", [
+                'status' => 'ongoing',
+                'verification_otp_input' => $otp,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('status');
 
         // Consultation must remain accepted.
         $this->assertDatabaseHas('consultations', [
@@ -312,7 +367,7 @@ class ConsultationTest extends TestCase
                 'verification_otp_input' => '000000',
             ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('verification_otp_input');
+            ->assertJsonValidationErrors('status');
 
         $this->assertDatabaseHas('consultations', [
             'id' => $consultationId,
