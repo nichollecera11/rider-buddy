@@ -94,8 +94,21 @@ class MechanicController extends Controller
                     );
 
                 } else {
-                    // Production distance is calculated in kilometers.
-                    $query->having('distance', '<', 50);
+                    // PostgreSQL: filter using the distance formula directly.
+                    // This avoids HAVING alias issues during pagination.
+                    $query->whereRaw(
+                        '(
+            6371 * acos(
+                LEAST(1, GREATEST(-1,
+                    cos(radians(?))
+                    * cos(radians(latitude))
+                    * cos(radians(longitude) - radians(?))
+                    + sin(radians(?)) * sin(radians(latitude))
+                ))
+            )
+        ) < ?',
+                        [$lat, $lng, $lat, 50]
+                    );
                 }
 
                 // Nearest mechanics first.
