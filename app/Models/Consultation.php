@@ -23,6 +23,9 @@ class Consultation extends Model
         'estimated_repair_costs',
         'payment_status',
         'status',
+        'cancelled_by',
+        'cancellation_reason',
+        'cancelled_at',
         'suggested_parts',
         'latitude',
         'longitude',
@@ -41,6 +44,7 @@ class Consultation extends Model
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
         'verification_otp_created_at' => 'datetime',
+        'cancelled_at' => 'datetime',
 
     ];
     protected $hidden = ['verification_otp'];
@@ -141,14 +145,34 @@ class Consultation extends Model
 
     public function isCancellable(): bool
     {
-        return $this->status === 'pending';
+        return in_array($this->status, [
+            'pending',
+            'accepted',
+            'ongoing',
+        ], true);
     }
 
-    public function cancel(): void
-    {
-        $this->media()->delete(); // soft-deletes media rows if ConsultationMedia uses SoftDeletes too
-        $this->delete(); // soft-deletes the consultation
+    public function cancel(
+        int $cancelledBy,
+        string $reason
+    ): void {
+        // Pending requests retain the existing soft-delete behavior.
+        if ($this->status === 'pending') {
+            $this->media()->delete();
+            $this->delete();
+
+            return;
+        }
+
+        // Accepted and ongoing requests retain their records.
+        $this->forceFill([
+            'status' => 'cancelled',
+            'cancelled_by' => $cancelledBy,
+            'cancellation_reason' => $reason,
+            'cancelled_at' => now(),
+        ])->save();
     }
+
     // 9/24/2026
     public function isAssignedMechanic(User $user): bool
     {

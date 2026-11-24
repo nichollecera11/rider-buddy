@@ -484,7 +484,12 @@ class ConsultationTest extends TestCase
     /**
      * A rider cannot cancel an accepted consultation.
      */
-    public function test_rider_cannot_cancel_accepted_consultation(): void
+
+    /**
+     * A rider can cancel an accepted consultation with a reason.
+     * The consultation record must be preserved.
+     */
+    public function test_rider_can_cancel_accepted_consultation(): void
     {
         $rider = User::factory()->create();
 
@@ -503,17 +508,142 @@ class ConsultationTest extends TestCase
             'status' => 'accepted',
         ]);
 
-        $response = $this->actingAs($rider, 'sanctum')
-            ->deleteJson("/api/consultations/{$consultation->id}");
+        $reason = 'I no longer need roadside assistance.';
 
-        $response->assertStatus(409);
+        $response = $this->actingAs($rider, 'sanctum')
+            ->deleteJson("/api/consultations/{$consultation->id}", [
+                'reason' => $reason,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', 'cancelled')
+            ->assertJsonPath('data.cancellation_reason', $reason);
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'cancelled',
+            'cancelled_by' => $rider->id,
+            'cancellation_reason' => $reason,
+            'deleted_at' => null,
+        ]);
+    }
+
+    /**
+     * A rider can cancel an ongoing consultation with a reason.
+     * The consultation record must be preserved.
+     */
+    public function test_rider_can_cancel_ongoing_consultation(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle suddenly stopped.',
+            'status' => 'ongoing',
+        ]);
+
+        $reason = 'I need to stop the service for now.';
+
+        $response = $this->actingAs($rider, 'sanctum')
+            ->deleteJson("/api/consultations/{$consultation->id}", [
+                'reason' => $reason,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', 'cancelled')
+            ->assertJsonPath('data.cancellation_reason', $reason);
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'cancelled',
+            'cancelled_by' => $rider->id,
+            'cancellation_reason' => $reason,
+            'deleted_at' => null,
+        ]);
+    }
+
+    /**
+     * Accepted and ongoing cancellations require a valid reason.
+     */
+    public function test_rider_cannot_cancel_accepted_consultation_without_valid_reason(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle suddenly stopped.',
+            'status' => 'accepted',
+        ]);
+
+        $this->actingAs($rider, 'sanctum')
+            ->deleteJson("/api/consultations/{$consultation->id}", [
+                'reason' => 'No',
+            ])
+            ->assertStatus(422);
 
         $this->assertDatabaseHas('consultations', [
             'id' => $consultation->id,
             'status' => 'accepted',
             'deleted_at' => null,
+            'cancelled_at' => null,
         ]);
     }
+
+    /**
+     * Another rider cannot cancel someone else's consultation.
+     */
+    public function test_another_rider_cannot_cancel_consultation(): void
+    {
+        $rider = User::factory()->create();
+        $anotherRider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $mechanic = Mechanic::factory()->create();
+
+        $consultation = Consultation::create([
+            'user_id' => $rider->id,
+            'mechanic_id' => $mechanic->id,
+            'user_motorcycle_id' => $motorcycle->id,
+            'consultation_type' => 'sos',
+            'issue_description' => 'My motorcycle suddenly stopped.',
+            'status' => 'accepted',
+        ]);
+
+        $this->actingAs($anotherRider, 'sanctum')
+            ->deleteJson("/api/consultations/{$consultation->id}", [
+                'reason' => 'I want to cancel this request.',
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('consultations', [
+            'id' => $consultation->id,
+            'status' => 'accepted',
+            'cancelled_at' => null,
+            'deleted_at' => null,
+        ]);
+    }
+
 
     /**
      * An assigned mechanic can complete an ongoing consultation

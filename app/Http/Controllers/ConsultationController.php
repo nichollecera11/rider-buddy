@@ -334,15 +334,18 @@ class ConsultationController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Consultation $consultation)
+
+
+    public function destroy(Request $request, Consultation $consultation)
     {
         // Only the consultation owner can cancel.
         $this->authorize('delete', $consultation);
 
+        $cancelledBy = (int) auth()->id();
+
         try {
-            $result = DB::transaction(function () use ($consultation) {
-                // Lock the row so another request cannot change it
-                // while cancellation is being processed.
+            $result = DB::transaction(function () use ($request, $consultation, $cancelledBy) {
+                // Lock the row to prevent simultaneous status changes.
                 $lockedConsultation = Consultation::whereKey($consultation->id)
                     ->lockForUpdate()
                     ->firstOrFail();
@@ -355,13 +358,35 @@ class ConsultationController extends Controller
                     ];
                 }
 
-                $lockedConsultation->cancel();
+                $reason = trim((string) $request->input('reason', ''));
+
+                // Accepted and ongoing cancellations require a reason.
+                if (
+                    $lockedConsultation->status !== 'pending' &&
+                    (mb_strlen($reason) < 10 || mb_strlen($reason) > 1000)
+                ) {
+                    return [
+                        'invalid_reason' => true,
+                    ];
+                }
+
+                $lockedConsultation->cancel(
+                    $cancelledBy,
+                    $reason
+                );
 
                 return [
                     'cancelled' => true,
+                    'status' => $lockedConsultation->status,
                     'consultation' => $lockedConsultation,
                 ];
             });
+
+            if ($result['invalid_reason'] ?? false) {
+                return response()->json([
+                    'message' => 'Please provide a cancellation reason between 10 and 1000 characters.',
+                ], 422);
+            }
 
             if (!$result['cancelled']) {
                 return response()->json([
@@ -370,14 +395,18 @@ class ConsultationController extends Controller
                 ], 409);
             }
 
+            $isPending = $result['status'] === 'pending';
+
             return response()->json([
-                'message' => 'Consultation Successfully Deleted',
+                'message' => $isPending
+                    ? 'Consultation Successfully Deleted'
+                    : 'Consultation Successfully Cancelled',
                 'data' => $result['consultation'],
             ], 200);
 
         } catch (Exception $e) {
             Log::error(
-                "Consultation Delete Error[{$consultation->id}]: "
+                "Consultation Cancellation Error[{$consultation->id}]: "
                 . $e->getMessage()
             );
 
@@ -388,9 +417,6 @@ class ConsultationController extends Controller
         }
     }
 
-    /**
-     * Update the rider-reported breakdown location.
-     */
     public function updateLocation(
         UpdateConsultationLocationRequest $request,
         Consultation $consultation
