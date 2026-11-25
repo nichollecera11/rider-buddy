@@ -46,6 +46,108 @@ class MaintenanceLogTest extends TestCase
             ->assertOk()
             ->assertJsonPath('count', 1);
     }
+
+    public function test_rider_can_filter_maintenance_logs_by_motorcycle(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycleOne = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $motorcycleTwo = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $logOne = MaintenanceLog::factory()->create([
+            'user_motorcycle_id' => $motorcycleOne->id,
+            'service_type' => 'Oil Change',
+        ]);
+
+        MaintenanceLog::factory()->create([
+            'user_motorcycle_id' => $motorcycleTwo->id,
+            'service_type' => 'Brake Inspection',
+        ]);
+
+        $this->actingAs($rider, 'sanctum')
+            ->getJson('/api/maintenance-logs?user_motorcycle_id=' . $motorcycleOne->id)
+            ->assertOk()
+            ->assertJsonPath('count', 1)
+            ->assertJsonPath('data.0.id', $logOne->id)
+            ->assertJsonPath('data.0.service_type', 'Oil Change');
+    }
+    public function test_rider_can_list_maintenance_logs_for_archived_motorcycle(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $log = MaintenanceLog::factory()->create([
+            'user_motorcycle_id' => $motorcycle->id,
+            'service_type' => 'Oil Change',
+        ]);
+
+        $motorcycle->delete();
+
+        $this->actingAs($rider, 'sanctum')
+            ->getJson('/api/maintenance-logs')
+            ->assertOk()
+            ->assertJsonPath('count', 1)
+            ->assertJsonPath('data.0.id', $log->id);
+    }
+
+    public function test_rider_can_filter_maintenance_logs_by_archived_motorcycle(): void
+    {
+        $rider = User::factory()->create();
+
+        $motorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $rider->id,
+        ]);
+
+        $log = MaintenanceLog::factory()->create([
+            'user_motorcycle_id' => $motorcycle->id,
+            'service_type' => 'Brake Inspection',
+        ]);
+
+        $motorcycle->delete();
+
+        $this->actingAs($rider, 'sanctum')
+            ->getJson('/api/maintenance-logs?user_motorcycle_id=' . $motorcycle->id)
+            ->assertOk()
+            ->assertJsonPath('count', 1)
+            ->assertJsonPath('data.0.id', $log->id)
+            ->assertJsonPath('data.0.service_type', 'Brake Inspection');
+    }
+    public function test_rider_cannot_filter_maintenance_logs_by_another_riders_motorcycle(): void
+    {
+        $rider = User::factory()->create();
+        $anotherRider = User::factory()->create();
+
+        $otherMotorcycle = UserMotorcycle::factory()->create([
+            'user_id' => $anotherRider->id,
+        ]);
+
+        MaintenanceLog::factory()->create([
+            'user_motorcycle_id' => $otherMotorcycle->id,
+        ]);
+
+        $this->actingAs($rider, 'sanctum')
+            ->getJson('/api/maintenance-logs?user_motorcycle_id=' . $otherMotorcycle->id)
+            ->assertNotFound()
+            ->assertJsonPath('message', 'Motorcycle not found.');
+    }
+
+    public function test_rider_cannot_filter_maintenance_logs_using_nonexistent_motorcycle(): void
+    {
+        $rider = User::factory()->create();
+
+        $this->actingAs($rider, 'sanctum')
+            ->getJson('/api/maintenance-logs?user_motorcycle_id=999999')
+            ->assertNotFound()
+            ->assertJsonPath('message', 'Motorcycle not found.');
+    }
     public function test_mechanic_can_only_list_assigned_maintenance_logs(): void
     {
         $mechanic = Mechanic::factory()->create();

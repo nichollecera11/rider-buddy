@@ -9,46 +9,61 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
 use App\Models\Consultation;
-
+use App\Models\UserMotorcycle;
 
 class MaintenanceLogController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
+
     public function index(Request $request)
     {
-        $user = auth()->user();
+        $user = $request->user();
 
-        DB::beginTransaction();
-        try {
-            $query = MaintenanceLog::with(['motorcycle.brand', 'mechanic.user:id,name']);
+        $query = MaintenanceLog::with([
+            'motorcycle.brand',
+            'mechanic.user:id,name',
+        ]);
 
-            if ($user->mechanic) {
-                $query->where('mechanic_id', $user->mechanic->id);
-            } else {
-                $query->whereHas('motorcycle', function ($q) use ($user) {
-                    $q->where('user_id', $user->id);
-                });
+        // Mechanic: retrieve only maintenance logs they created.
+        if ($user->mechanic) {
+            $query->where('mechanic_id', $user->mechanic->id);
+        } else {
+            // Rider: only retrieve motorcycles owned by this account.
+            $query->whereHas('motorcycle', function ($q) use ($user) {
+                $q->withTrashed()
+                    ->where('user_id', $user->id);
+            });
+
+            // Optional motorcycle-specific history filter.
+            if ($request->filled('user_motorcycle_id')) {
+                $motorcycle = UserMotorcycle::withTrashed()
+                    ->where('id', $request->input('user_motorcycle_id'))
+                    ->where('user_id', $user->id)
+                    ->first();
+
+                if (!$motorcycle) {
+                    return response()->json([
+                        'message' => 'Motorcycle not found.',
+                    ], 404);
+                }
+
+                $query->where('user_motorcycle_id', $motorcycle->id);
             }
-            $logs = $query->latest()->get();
-
-            DB::commit();
-            return response()->json([
-                'message' => 'Maintenance Logs Retrieved Successfully',
-                'count' => $logs->count(),
-                'data' => $logs
-            ], 200);
-        } catch (Exception $e) {
-            DB::rollBack();
-            Log::error("Maintenance Log Retrieve Failed:" . $e->getMessage());
-            return response()->json([
-                'message' => 'Failed to Retrieve Maintenance Log',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
-            ], 500);
         }
 
+        $logs = $query->latest('service_date')
+            ->latest('id')
+            ->get();
+
+        return response()->json([
+            'message' => 'Maintenance Logs Retrieved Successfully',
+            'count' => $logs->count(),
+            'data' => $logs,
+        ], 200);
     }
+
 
     public function store(StoreMaintenanceLogRequest $request)
     {

@@ -34,6 +34,41 @@ class UserMotorcycleController extends Controller
 
         }
     }
+    public function archived()
+    {
+        $motorcycles = UserMotorcycle::withTrashed()
+            ->where('user_id', auth()->id())
+            ->whereNotNull('deleted_at')
+            ->with('brand')
+            ->latest('deleted_at')
+            ->get();
+
+        return response()->json([
+            'message' => 'Archived Motorcycles Retrieved Successfully',
+            'count' => $motorcycles->count(),
+            'data' => $motorcycles,
+        ], 200);
+    }
+    public function showArchived($id)
+    {
+        $motorcycle = UserMotorcycle::withTrashed()
+            ->where('id', $id)
+            ->where('user_id', auth()->id())
+            ->whereNotNull('deleted_at')
+            ->with('brand')
+            ->first();
+
+        if (!$motorcycle) {
+            return response()->json([
+                'message' => 'Archived motorcycle not found.',
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => 'Archived Motorcycle Retrieved Successfully',
+            'data' => $motorcycle,
+        ], 200);
+    }
 
     /**
      * Store a newly created resource in storage.
