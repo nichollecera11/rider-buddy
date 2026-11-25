@@ -22,11 +22,11 @@ class StoreMaintenanceLogRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'consultation_id' => 'required|exists:consultations,id',
-            'service_type' => 'required|string',
+            'consultation_id' => 'required|integer|exists:consultations,id',
+            'service_type' => 'required|string|max:255',
             'description' => 'nullable|string',
             'odometer_reading' => 'required|integer|min:0',
-            'cost' => 'nullable|integer|min:0',
+            'cost' => 'sometimes|nullable|numeric|min:0',
         ];
     }
 }

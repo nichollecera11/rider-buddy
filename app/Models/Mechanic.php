@@ -25,6 +25,7 @@ class Mechanic extends Model
         'service_fee_starts_at',
         'is_24_7',
         'offers_towing',
+        'is_verified',
     ];
 
     protected $casts = [

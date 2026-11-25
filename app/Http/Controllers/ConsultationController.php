@@ -12,6 +12,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Auth\Access\AuthorizationException;
+use App\Http\Requests\UpdateConsultationLocationRequest;
 
 
 
@@ -83,7 +85,6 @@ class ConsultationController extends Controller
             ], 500);
         }
     }
-
     /**
      * Store a newly created resource in storage.
      */
@@ -100,6 +101,19 @@ class ConsultationController extends Controller
                     ->where('id', $userId)
                     ->lockForUpdate()
                     ->first();
+                // Recheck motorcycle ownership and availability inside the transaction.
+                $motorcycleExists = DB::table('user_motorcycles')
+                    ->where('id', $request->input('user_motorcycle_id'))
+                    ->where('user_id', $userId)
+                    ->whereNull('deleted_at')
+                    ->exists();
+
+                if (!$motorcycleExists) {
+                    return [
+                        'motorcycle_unavailable' => true,
+                    ];
+                }
+
 
                 // Prevent a rider from creating multiple unresolved SOS requests.
                 if ($request->input('consultation_type') === 'sos') {
@@ -118,9 +132,21 @@ class ConsultationController extends Controller
                     }
                 }
 
-                $mechanic = Mechanic::findOrFail(
-                    $request->input('mechanic_id')
-                );
+                $mechanic = Mechanic::query()
+                    ->where('is_verified', true)
+                    ->where('is_available', true)
+                    ->whereHas('user', function ($query) {
+                        $query->where('role', 'mechanic')
+                            ->where('is_active', true)
+                            ->where('is_banned', false);
+                    })
+                    ->find($request->input('mechanic_id'));
+
+                if (!$mechanic) {
+                    return [
+                        'ineligible_mechanic' => true,
+                    ];
+                }
 
                 $consultation = Consultation::create([
                     ...$request->safe()->except(['images', 'videos']),
@@ -140,11 +166,22 @@ class ConsultationController extends Controller
                 ];
             });
 
-            if ($result['duplicate']) {
+            if ($result['motorcycle_unavailable'] ?? false) {
+                return response()->json([
+                    'message' => 'Selected motorcycle is no longer available. Please refresh your garage and try again.',
+                ], 422);
+            }
+
+            if ($result['duplicate'] ?? false) {
                 return response()->json([
                     'message' => 'You already have an unresolved SOS request. Please check its status before submitting another.',
                     'data' => $result['data'],
                 ], 409);
+            }
+            if ($result['ineligible_mechanic'] ?? false) {
+                return response()->json([
+                    'message' => 'This mechanic is not verified or is currently unavailable.',
+                ], 422);
             }
 
             $consultation = $result['consultation'];
@@ -175,8 +212,6 @@ class ConsultationController extends Controller
             ], 500);
         }
     }
-
-
     /**
      * Display the specified resource.
      */
@@ -204,8 +239,6 @@ class ConsultationController extends Controller
             ], 500);
         }
     }
-
-
     /**
      * Update the specified resource in storage.
      */
@@ -214,70 +247,405 @@ class ConsultationController extends Controller
         $this->authorize('update', $consultation);
 
         try {
-            $fields = $request->safe()->except('verification_otp_input');
+            $updatedConsultation = DB::transaction(function () use ($request, $consultation) {
 
-            if ($request->status === 'ongoing') {
-                if (!$request->filled('verification_otp_input')) {
-                    return response()->json(['message' => 'QR Scan required to start service'], 422);
+                // Lock the consultation to prevent simultaneous status changes.
+                $lockedConsultation = Consultation::whereKey($consultation->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                // Recheck authorization against the locked record.
+                $this->authorize('update', $lockedConsultation);
+
+                // Completed consultations are permanently read-only.
+                if ($lockedConsultation->status === 'completed') {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'status' => 'Completed consultations cannot be modified.',
+                    ]);
                 }
 
-                [$ok, $error] = $consultation->verifyOtp($request->verification_otp_input);
-                if (!$ok) {
-                    return response()->json(['message' => $error], 422);
+                $validated = $request->validated();
+                $requestedStatus = $validated['status'] ?? null;
+
+                $fields = [];
+
+                // Only allow mechanics to update these service-related fields.
+                foreach ([
+                    'mechanic_notes',
+                    'suggested_parts',
+                    'estimated_repair_costs',
+                ] as $field) {
+                    if (array_key_exists($field, $validated)) {
+                        $fields[$field] = $validated[$field];
+                    }
                 }
 
-                if (!$consultation->arrived_at) {
-                    $fields['arrived_at'] = now();
-                }
-            }
-            DB::beginTransaction();
-            $consultation->update($fields);
-            $consultation->attachMedia($request);
+                if ($requestedStatus) {
 
-            DB::commit();
+                    // A mechanic can accept only a pending consultation.
+                    if ($requestedStatus === 'accepted') {
+                        if ($lockedConsultation->status !== 'pending') {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                'status' => 'Only pending consultations can be accepted.',
+                            ]);
+                        }
+                    }
+
+                    // Service can only start after rider-confirmed QR arrival.
+                    elseif ($requestedStatus === 'ongoing') {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'status' => 'Service can only start after the rider confirms QR arrival verification.',
+                        ]);
+                    }
+
+                    $fields['status'] = $requestedStatus;
+                }
+
+                $lockedConsultation->update($fields);
+
+                // Preserve existing media attachment functionality.
+                $lockedConsultation->attachMedia($request);
+
+                return $lockedConsultation->fresh()
+                    ->load('media', 'user:id,name', 'motorcycle');
+            });
 
             return response()->json([
                 'message' => 'Consultation Updated Successfully',
-                'data' => $consultation->load('media', 'user:id,name', 'motorcycle')
+                'data' => $updatedConsultation,
+            ], 200);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+
+        } catch (\Throwable $e) {
+            Log::error("Consultation Update Error [ID: {$consultation->id}]", [
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'message' => 'Update Failed',
+                'error' => config('app.debug')
+                    ? $e->getMessage()
+                    : 'Server Error',
+            ], 500);
+        }
+    }
+    /**
+     * Remove the specified resource from storage.
+     */
+
+
+    public function destroy(Request $request, Consultation $consultation)
+    {
+        // Only the consultation owner can cancel.
+        $this->authorize('delete', $consultation);
+
+        $cancelledBy = (int) auth()->id();
+
+        try {
+            $result = DB::transaction(function () use ($request, $consultation, $cancelledBy) {
+                // Lock the row to prevent simultaneous status changes.
+                $lockedConsultation = Consultation::whereKey($consultation->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                // Recheck status after acquiring the lock.
+                if (!$lockedConsultation->isCancellable()) {
+                    return [
+                        'cancelled' => false,
+                        'consultation' => $lockedConsultation,
+                    ];
+                }
+
+                $reason = trim((string) $request->input('reason', ''));
+
+                // Accepted and ongoing cancellations require a reason.
+                if (
+                    $lockedConsultation->status !== 'pending' &&
+                    (mb_strlen($reason) < 10 || mb_strlen($reason) > 1000)
+                ) {
+                    return [
+                        'invalid_reason' => true,
+                    ];
+                }
+
+                $lockedConsultation->cancel(
+                    $cancelledBy,
+                    $reason
+                );
+
+                return [
+                    'cancelled' => true,
+                    'status' => $lockedConsultation->status,
+                    'consultation' => $lockedConsultation,
+                ];
+            });
+
+            if ($result['invalid_reason'] ?? false) {
+                return response()->json([
+                    'message' => 'Please provide a cancellation reason between 10 and 1000 characters.',
+                ], 422);
+            }
+
+            if (!$result['cancelled']) {
+                return response()->json([
+                    'message' => 'Cannot cancel consultation. It is already '
+                        . $result['consultation']->status,
+                ], 409);
+            }
+
+            $isPending = $result['status'] === 'pending';
+
+            return response()->json([
+                'message' => $isPending
+                    ? 'Consultation Successfully Deleted'
+                    : 'Consultation Successfully Cancelled',
+                'data' => $result['consultation'],
             ], 200);
 
         } catch (Exception $e) {
-            DB::rollBack();
-            Log::error("Consultation Update Error: " . $e->getMessage());
+            Log::error(
+                "Consultation Cancellation Error[{$consultation->id}]: "
+                . $e->getMessage()
+            );
+
             return response()->json([
-                'message' => 'Update Failed',
+                'message' => 'Failed to Cancel Consultation',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error',
+            ], 500);
+        }
+    }
+
+    public function updateLocation(
+        UpdateConsultationLocationRequest $request,
+        Consultation $consultation
+    ) {
+        $this->authorize('updateLocation', $consultation);
+
+        try {
+            $updatedConsultation = DB::transaction(function () use ($request, $consultation) {
+
+                // Lock consultation to prevent simultaneous status/location changes.
+                $lockedConsultation = Consultation::whereKey($consultation->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                // Recheck ownership and status against the locked record.
+                $this->authorize('updateLocation', $lockedConsultation);
+
+                $validated = $request->validated();
+
+                $latitude = round((float) $validated['latitude'], 8);
+                $longitude = round((float) $validated['longitude'], 8);
+                $now = now();
+
+                // Check if an unconfirmed QR is still active.
+                $hasActiveQr = $lockedConsultation->qrChallenges()
+                    ->whereNull('confirmed_at')
+                    ->whereNull('revoked_at')
+                    ->where(function ($query) use ($now) {
+                        $query->where(function ($query) use ($now) {
+                            $query->whereNull('scanned_at')
+                                ->where('expires_at', '>', $now);
+                        })->orWhere(function ($query) use ($now) {
+                            $query->whereNotNull('scanned_at')
+                                ->where('confirmation_expires_at', '>', $now);
+                        });
+                    })
+                    ->exists();
+
+                $oldLatitude = $lockedConsultation->latitude;
+                $oldLongitude = $lockedConsultation->longitude;
+
+                $shouldRevokeQr = false;
+                $keepOriginalCoordinates = false;
+
+                if ($hasActiveQr) {
+                    if ($oldLatitude === null || $oldLongitude === null) {
+                        // No reliable reference coordinates.
+                        $shouldRevokeQr = true;
+                    } else {
+                        $distance = $this->calculateDistanceInMeters(
+                            (float) $oldLatitude,
+                            (float) $oldLongitude,
+                            $latitude,
+                            $longitude
+                        );
+
+                        if ($distance > 50) {
+                            $shouldRevokeQr = true;
+                        } else {
+                            // Preserve original coordinates to prevent cumulative GPS drift.
+                            $keepOriginalCoordinates = true;
+                        }
+                    }
+                }
+
+                $lockedConsultation->update([
+                    'latitude' => $keepOriginalCoordinates
+                        ? $oldLatitude
+                        : $latitude,
+                    'longitude' => $keepOriginalCoordinates
+                        ? $oldLongitude
+                        : $longitude,
+                    'location_name' => array_key_exists('location_name', $validated)
+                        ? $validated['location_name']
+                        : $lockedConsultation->location_name,
+                ]);
+
+                // Revoke unconfirmed QR challenges when movement exceeds 50 meters.
+                if ($shouldRevokeQr) {
+                    $lockedConsultation->qrChallenges()
+                        ->whereNull('confirmed_at')
+                        ->whereNull('revoked_at')
+                        ->update([
+                            'revoked_at' => $now,
+                            'updated_at' => $now,
+                        ]);
+                }
+
+                return $lockedConsultation->fresh();
+            });
+
+            return response()->json([
+                'message' => 'Breakdown location updated successfully.',
+                'data' => $updatedConsultation,
+            ], 200);
+
+        } catch (AuthorizationException $e) {
+            throw $e;
+
+        } catch (\Throwable $e) {
+            Log::error("Consultation Location Update Error [ID: {$consultation->id}]", [
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'message' => 'Location update failed.',
+                'error' => config('app.debug')
+                    ? $e->getMessage()
+                    : 'Server Error',
+            ], 500);
+        }
+    }
+
+    public function complete(Request $request, Consultation $consultation)
+    {
+        $this->authorize('update', $consultation);
+
+        try {
+            $result = DB::transaction(function () use ($request, $consultation) {
+                $lockedConsultation = Consultation::whereKey($consultation->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                // Recheck authorization after acquiring the lock.
+                $this->authorize('update', $lockedConsultation);
+
+                $user = $request->user();
+                $mechanic = $user->mechanic;
+
+                // Confirm that the mechanic account is eligible.
+                if (
+                    !$user->is_active ||
+                    $user->is_banned ||
+                    !$mechanic ||
+                    !$mechanic->is_verified
+                ) {
+                    return [
+                        'completed' => false,
+                        'status' => 403,
+                        'message' => 'Your account is not authorized to complete consultations.',
+                    ];
+                }
+
+                // Prevent duplicate or invalid completion.
+                if ($lockedConsultation->status === 'completed') {
+                    return [
+                        'completed' => false,
+                        'status' => 409,
+                        'message' => 'This consultation has already been completed.',
+                    ];
+                }
+
+                if ($lockedConsultation->status !== 'ongoing') {
+                    return [
+                        'completed' => false,
+                        'status' => 422,
+                        'message' => 'Only ongoing consultations can be completed.',
+                    ];
+                }
+
+                // Confirm that the motorcycle still belongs to the rider.
+                $motorcycleBelongsToRider = $lockedConsultation->motorcycle()
+                    ->where('user_id', $lockedConsultation->user_id)
+                    ->exists();
+
+                if (!$motorcycleBelongsToRider) {
+                    return [
+                        'completed' => false,
+                        'status' => 422,
+                        'message' => 'The consultation motorcycle does not belong to the rider.',
+                    ];
+                }
+
+                // Require at least one valid, mechanic-verified service record.
+                $hasVerifiedMaintenanceLog = $lockedConsultation->maintenanceLogs()
+                    ->where('mechanic_id', $lockedConsultation->mechanic_id)
+                    ->where('user_motorcycle_id', $lockedConsultation->user_motorcycle_id)
+                    ->where('is_verified_by_mechanic', true)
+                    ->exists();
+
+                if (!$hasVerifiedMaintenanceLog) {
+                    return [
+                        'completed' => false,
+                        'status' => 422,
+                        'message' => 'A verified maintenance log is required before completing this consultation.',
+                    ];
+                }
+
+                // Complete the service without changing payment status.
+                $lockedConsultation->update([
+                    'status' => 'completed',
+                ]);
+
+                return [
+                    'completed' => true,
+                    'consultation' => $lockedConsultation->fresh(),
+                ];
+            });
+
+            if (!$result['completed']) {
+                return response()->json([
+                    'message' => $result['message'],
+                ], $result['status']);
+            }
+
+            return response()->json([
+                'message' => 'Consultation completed successfully.',
+                'data' => $result['consultation'],
+            ], 200);
+
+        } catch (AuthorizationException $e) {
+            return response()->json([
+                'message' => 'You are not authorized to complete this consultation.',
+            ], 403);
+
+        } catch (Exception $e) {
+            Log::error(
+                "Consultation Completion Error[{$consultation->id}]: "
+                . $e->getMessage()
+            );
+
+            return response()->json([
+                'message' => 'Failed to complete consultation.',
                 'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error',
             ], 500);
         }
     }
 
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Consultation $consultation)
-    {
-        $this->authorize('delete', $consultation);
-
-        if (!$consultation->isCancellable()) {
-            return response()->json([
-                'message' => 'Cannot cancel consultation. It is already' . $consultation->status
-            ], 409);
-        }
-        try {
-            $consultation->cancel();
-            return response()->json([
-                'message' => 'Consultation Succesfully Deleted',
-                'data' => $consultation
-            ], 200);
-        } catch (Exception $e) {
-            Log::error("Consultation Delete Error[{$consultation->id}]:" . $e->getMessage());
-            return response()->json([
-                'message' => 'Failed to Cancel Consultation',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
-            ], 500);
-        }
-    }
     public function mechanicRequests()
     {
         try {
@@ -305,5 +673,34 @@ class ConsultationController extends Controller
                 'error' => env('APP_DEBUG') ? $e->getMessage() : 'Server Error'
             ], 500);
         }
+    }
+    /**
+     * Calculate the distance between two GPS coordinates in meters.
+     */
+    private function calculateDistanceInMeters(
+        float $lat1,
+        float $lon1,
+        float $lat2,
+        float $lon2
+    ): float {
+        $earthRadius = 6371000; // Earth's average radius in meters.
+
+        $latDifference = deg2rad($lat2 - $lat1);
+        $lonDifference = deg2rad($lon2 - $lon1);
+
+        $a = sin($latDifference / 2) ** 2
+            + cos(deg2rad($lat1))
+            * cos(deg2rad($lat2))
+            * sin($lonDifference / 2) ** 2;
+
+        // Prevent floating-point precision issues.
+        $a = min(1, max(0, $a));
+
+        $centralAngle = 2 * atan2(
+            sqrt($a),
+            sqrt(1 - $a)
+        );
+
+        return $earthRadius * $centralAngle;
     }
 }

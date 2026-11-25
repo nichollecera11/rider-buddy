@@ -19,6 +19,7 @@ use App\Http\Controllers\ConsultationMediaController;
 use App\Http\Controllers\LTOComplianceController;
 use App\Http\Controllers\DiagnosticReportController;
 use App\Http\Controllers\MaintenanceLogController;
+use App\Http\Controllers\ConsultationQrController;
 
 
 
@@ -52,14 +53,52 @@ Route::group(['middleware' => ['auth:sanctum', 'not.banned']], function () {
     Route::apiResource('mechanics', MechanicController::class)->except(['index', 'show']);
     Route::apiResource('sellers', SellerController::class)->except(['index', 'show']);
     Route::apiResource('reviews', ReviewController::class)->except(['index', 'show']);
-    Route::apiResource('consultations', ConsultationController::class);
+    // Archived motorcycles (read-only)
+    Route::get(
+        'user-motorcycles/archived',
+        [UserMotorcycleController::class, 'archived']
+    );
+
+    Route::get(
+        'user-motorcycles/archived/{id}',
+        [UserMotorcycleController::class, 'showArchived']
+    );
+
+    // Active motorcycle CRUD
     Route::apiResource('user-motorcycles', UserMotorcycleController::class);
+    Route::apiResource('consultations', ConsultationController::class);
+    Route::patch(
+        'consultations/{consultation}/location',
+        [ConsultationController::class, 'updateLocation']
+    );
+    Route::post(
+        'consultations/{consultation}/qr-challenge',
+        [ConsultationQrController::class, 'store']
+    );
+    Route::post(
+        'consultations/{consultation}/qr-challenge/scan',
+        [ConsultationQrController::class, 'scan']
+    );
+    Route::get(
+        'consultations/{consultation}/qr-challenge/pending',
+        [ConsultationQrController::class, 'pendingScan']
+    );
+    Route::post(
+        'consultations/{consultation}/qr-challenge/confirm',
+        [ConsultationQrController::class, 'confirmArrival']
+    );
+    Route::post(
+        'consultations/{consultation}/complete',
+        [ConsultationController::class, 'complete']
+    );
     Route::get('mechanic/consultations', [ConsultationController::class, 'mechanicRequests']);
     // Para sa pag-delete o pag-manage og tagsa-tagsa nga file
     Route::apiResource('consultation-media', ConsultationMediaController::class)->only(['destroy']);
     // Diagnostic Reports (Shallow Nested Resource)
     Route::apiResource('consultations.diagnostic-reports', DiagnosticReportController::class)->shallow();
-    Route::apiResource('maintenance-logs', MaintenanceLogController::class);
+    Route::apiResource('maintenance-logs', MaintenanceLogController::class)
+        ->only(['index', 'store', 'show']);
+
 
     // --- RIDER ROUTES ---
     // Mag-submit og documents para sa iyang motor, ug i-check ang status sa iyang compliance

@@ -37,7 +37,23 @@ class ConsultationPolicy
      */
     public function update(User $user, Consultation $consultation): bool
     {
-        return $user->mechanic && $consultation->mechanic_id === $user->mechanic->id;
+        $mechanic = $user->mechanic;
+
+        return $user->isMechanic()
+            && $user->is_active
+            && !$user->is_banned
+            && $mechanic !== null
+            && $mechanic->is_verified
+            && $consultation->mechanic_id === $mechanic->id;
+    }
+
+    /**
+     * Determine whether the rider can update the breakdown location.
+     */
+    public function updateLocation(User $user, Consultation $consultation): bool
+    {
+        return $consultation->user_id === $user->id
+            && in_array($consultation->status, ['pending', 'accepted'], true);
     }
 
     /**

@@ -126,11 +126,28 @@ class MechanicLocationTest extends TestCase
         $near = Mechanic::factory()->create([
             'latitude' => 8.4542,
             'longitude' => 124.6319,
+            'is_verified' => true,
+            'is_available' => true,
         ]);
 
         $far = Mechanic::factory()->create([
             'latitude' => 8.5000,
             'longitude' => 124.6800,
+            'is_verified' => true,
+            'is_available' => true,
+        ]);
+
+        // Ensure both factory-created accounts qualify for public mechanic search.
+        $near->user->update([
+            'role' => 'mechanic',
+            'is_active' => true,
+            'is_banned' => false,
+        ]);
+
+        $far->user->update([
+            'role' => 'mechanic',
+            'is_active' => true,
+            'is_banned' => false,
         ]);
 
         $response = $this->getJson(
@@ -194,14 +211,25 @@ class MechanicLocationTest extends TestCase
         $near = Mechanic::factory()->create([
             'latitude' => 8.4542,
             'longitude' => 124.6319,
+            'is_verified' => true,
+            'is_available' => true,
         ]);
 
-        // This point is within the rough bounding box but outside
-        // the 50 km circular radius.
         $outside = Mechanic::factory()->create([
             'latitude' => 8.80,
             'longitude' => 124.98,
+            'is_verified' => true,
+            'is_available' => true,
         ]);
+
+        // Ensure both accounts qualify for public mechanic search.
+        foreach ([$near, $outside] as $mechanic) {
+            $mechanic->user->forceFill([
+                'role' => 'mechanic',
+                'is_active' => true,
+                'is_banned' => false,
+            ])->save();
+        }
 
         $response = $this->getJson(
             '/api/mechanics?lat=8.4542&lng=124.6319'

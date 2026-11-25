@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+
 class MaintenanceLog extends Model
 {
     /** @use HasFactory<\Database\Factories\MaintenanceLogFactory> */
@@ -13,6 +14,7 @@ class MaintenanceLog extends Model
 
     protected $fillable = [
         'user_motorcycle_id',
+        'consultation_id',
         'mechanic_id',
         'service_type',
         'description',
@@ -24,10 +26,12 @@ class MaintenanceLog extends Model
     ];
 
     //Relationship
-    public function motorcycle(){
-        return $this->belongsTo(UserMotorcycle::class, 'user_motorcycle_id');
+    public function motorcycle()
+    {
+        return $this->belongsTo(UserMotorcycle::class, 'user_motorcycle_id')->withTrashed();
     }
-    public function mechanic(){
+    public function mechanic()
+    {
         return $this->belongsTo(Mechanic::class);
     }
 
@@ -35,6 +39,10 @@ class MaintenanceLog extends Model
     public function diagnosticReport()
     {
         return $this->belongsTo(DiagnosticReport::class);
+    }
+    public function consultation()
+    {
+        return $this->belongsTo(Consultation::class);
     }
 
 }
